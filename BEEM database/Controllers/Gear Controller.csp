@@ -1,0 +1,220 @@
+﻿/***********************************************************************************************************
+@article{,
+  author = 	 {Magnus Lindahl and Paul Pettersson and Wang Yi},
+  title = 	 {{Formal Design and Analysis of a Gearbox Controller}},
+  journal = 	 {Springer International Journal of Software Tools for Technology Transfer (STTT)},
+  year = 	 {2001},
+  volume = 	 {3},
+  number = 	 {3},
+  pages = 	 {353--368}
+}
+***********************************************************************************************************/
+
+//MAX
+#define MAX 5;
+
+var tGB = 255;
+var tC = 255;
+var tE = 255;
+var tGC = 255;
+
+var toGear = 0;
+var currentGear = 0;
+
+channel OpenClutch 0;
+channel CloseClutch 0;
+channel ClutchIsOpen 0;
+channel ClutchIsClosed 0;
+channel ReqSet 0;
+channel ReqNeu 0;
+channel GearSet 0;
+channel GearNeu 0;
+channel ReqSpeed 0;
+channel ReqTorque 0;
+channel ReqZeroTorque 0;
+channel TorqueZero 0;
+channel SpeedSet 0;
+channel ReqNewGear 0;
+channel NewGear 0;
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+Timer() = [ tGB != 0 && tC != 0 && tE != 0 && tGC != 0 ]tick{ 
+			if( tGB != 255 ){ tGB = tGB - 1 }
+			if( tC != 255){ tC = tC - 1 }
+			if( tE != 255){ tE = tE - 1 }
+			if( tGC != 255){ tGC = tGC - 1}
+			} -> Timer();
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+hvar erroropen_flag;
+hvar errorclose_flag;
+
+//Clutch
+Clutch() = CClosed(); 
+ 
+CClosed() = OpenClutch?0{ tC = 3 } -> COpening();
+
+COpening() = ([ tC <= 1 ]ClutchIsOpen!0{ tC = 255 } -> COpen()) []
+ 			 [ tC == 0 ]copening{ tC = 255; erroropen_flag = 1 } -> Skip;
+ 			 
+COpen() = CloseClutch?0{ tC = 3 } -> CClosing();
+
+CClosing() = ([ tC <= 1 ]ClutchIsClosed!0{ tC = 255 } -> CClosed()) []
+ 			 [ tC == 0 ]cclosing{ tC = 255; errorclose_flag = 1 } -> Skip;
+	
+
+
+hvar erroridle_flag;
+hvar errorneu_flag;
+
+//Gearbox
+Gearbox() = Neutral(); 
+
+Neutral() = ReqSet?0{ tGB = 6 } -> GClosing();
+
+GClosing() = ([ tGB == 0 ]gclosing{ tGB = 255; erroridle_flag = 1 } -> Skip) []
+			 ([ tGB <= 4 ]GearSet!0{ tGB = 255 } -> GIdle());
+			 
+GIdle() = ReqNeu?0{ tGB = 4 } -> GOpening();
+
+GOpening() = ([ tGB == 0 ]gopening{ tGB = 255; errorneu_flag = 1 } -> Skip) []
+			 ([ tGB <= 2 ]GearNeu!0{ tGB = 255 } -> Neutral());
+
+
+hvar errorspeed_flag;
+
+//Engine
+Engine() = EInitial();
+
+EInitial() = ReqSpeed?0{ tE = 4 } -> FindSpeed();
+
+ETorque() = ReqZeroTorque?0{ tE = 8 } -> DecTorque();
+
+DecTorque() = [ tE == 0 ]dectorque -> ClutchOpen() []
+			  ([ tE <= 5 ]TorqueZero!0{ tE = 255 } -> EZero());
+			  
+ClutchClose() = ([ tE == 0 ]clutchclose{ tE = 255; errorspeed_flag = 1 } -> Skip) []
+				([ tE < 17 ]ReqTorque?0{ tE = 255 } -> ETorque());
+				
+ClutchOpen() = [ toGear == 0 ]clutchopen0 -> EInitial() []
+			   ([ toGear != 0 ]clutchoepn1{ tE = 18 } -> ClutchClose());
+			   
+ESpeed() = [ tE == 0 ]espeed{ tE = 255 } -> ClutchOpen() []
+		   ([ tE > 0 ]ReqTorque?0{ tE = 255 } -> ETorque());
+		   
+FindSpeed() = [ tE == 0 ]findspeed -> ClutchOpen() []
+			  ([ tE <= 3 ]SpeedSet!0{ tE = 10 } -> ESpeed());
+			  
+EZero() = [ toGear == 0 ]ezero -> EInitial() []
+		  ([ toGear != 0 ]ReqSpeed?0{ tE = 4 } -> FindSpeed());
+
+
+//Interface
+Interface() = IGear();
+
+IGear() = ([ currentGear < MAX ]ReqNewGear!1 -> GoUp()) []
+		  ([ currentGear > -1 ]ReqNewGear!-1 -> GoDown());
+		  
+GoUp() = NewGear?0{ currentGear = currentGear + 1 } -> IGear();
+
+GoDown() = NewGear?0{ currentGear = currentGear - 1 } -> IGear();
+
+hvar copenerror_flag;
+hvar gneuerror_flag;
+hvar gseterror_flag;
+hvar ccloseerror_flag;
+
+//Gear Control
+GearControl() = GCGear(); 
+
+var dir_fake;
+GCGear() = ReqNewGear?dir{ toGear =toGear + dir; dir_fake = dir } -> GCInitial();
+
+GCInitial() = ([ currentGear != 0 ]ReqZeroTorque!0{ tGC = 5 } -> CheckTorque()) []
+			  ([ currentGear == 0 ]gcinitial -> ReqSyncSpeed());
+			  
+CheckTorque() = ([ tGC > 0 ]TorqueZero?0 -> ReqNeuGear()) []
+				([ tGC == 0 ]OpenClutch!0{ tGC = 4 } -> CheckClutch2());
+				
+ReqNeuGear() = ReqNeu!0{ tGC = 5 } -> CheckGearNeu();
+
+CheckGearNeu() = (GearNeu?0 -> ReqSyncSpeed()) []
+				 [ tGC == 0 ]checkgearneu{ tGC = 255; gneuerror_flag = 1 } -> Skip;
+				 
+GCClutchOpen2() = ReqNeu!0{ tGC = 5 } -> CheckGearNeu2();
+
+CheckGearNeu2() = ([ tGC == 0 ]checkgearneu2{ tGC = 255; gneuerror_flag = 1 } -> Skip) []
+				  (GearNeu?0{ tGC = 0 } -> ReqSetGear2());
+				  
+ReqSyncSpeed() = ([ toGear == 0 ]reqsyncspeed -> GearChnlged()) []
+				 ([ toGear != 0 ]ReqSpeed!0{ tGC = 3 } -> CheckSyncSpeed());		
+				 
+CheckClutch() = [ tGC == 0 ]checkclutch{ copenerror_flag = 1 } -> Skip []
+				(ClutchIsOpen?0{ tGC = 0 } -> GCClutchOpen());
+				
+ReqSetGear2() = ([ toGear!= 0 ]ReqSet!0{ tGC = 7 } -> CheckGearSet2()) []
+				([ toGear == 0 ]CloseClutch!0{ tGC = 4 } -> CheckClutchClosed2());
+				
+CheckSyncSpeed() = ([ tGC > 0 ]SpeedSet?0 -> ReqSetGear()) []
+				   ([ tGC == 0 ]OpenClutch!0{ tGC = 4 } -> CheckClutch());
+				   
+ReqSetGear() = ReqSet!0{ tGC = 7 } -> CheckGearSet1();
+
+GCClutchOpen() = ReqSet!0{ tGC = 7 } -> CheckGearSet2();
+
+CheckGearSet1() = (GearSet?0{ tGC = 0 } -> GCReqTorque()) []
+				  ([ tGC == 0 ]checkgearset1{ tGC = 255; gseterror_flag = 1 } -> Skip);
+				  
+CheckGearSet2() = ([ tGC == 0 ]checkgearset2{ tGC = 255; gseterror_flag = 1 } -> Skip) []
+				  (GearSet?0{ tGC = 0 } -> GCClutchClose());
+				  
+GCReqTorque() = ReqTorque!0 -> GearChnlged();
+
+CheckClutchClosed() = ( ClutchIsClosed?0{ tGC = 0 } -> GCReqTorque()) []
+					  ([ tGC == 0 ]checkclutchclosed{ tGC = 255; ccloseerror_flag = 1 } -> Skip);
+					  
+GCClutchClose() = CloseClutch!0{ tGC = 4 } -> CheckClutchClosed();
+
+GearChnlged() = NewGear!0{ tGC = 255 } -> GCGear();
+
+CheckClutchClosed2() = ([ tGC == 0 ]checkclutchclosed2{ tGC = 255; ccloseerror_flag = 1 } -> Skip) []
+					   (ClutchIsClosed?0{ tGC = 0 } -> GearChnlged());
+					   
+CheckClutch2() = ([ tGC == 0 ]checkclutch2{ tGC = 255; copenerror_flag = 1 } -> Skip) []
+				 ( ClutchIsOpen?0{ tGC = 0 } -> GCClutchOpen2());
+				 
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+Gear() = Timer() ||| Clutch() ||| Gearbox() ||| Engine() ||| Interface() ||| GearControl();
+
+/*------------------------------------------------------------------------------------------------------------------------------------------------------*/
+
+
+#assert Gear() deadlockfree;
+
+//reachability
+//It is possible use MAX gear.
+#define maxgear currentGear == MAX;
+#assert Gear() reaches maxgear;
+
+//reachability
+//Clutch open error.
+#define error_open erroropen_flag == 1;
+#assert Gear() reaches error_open;
+
+//reachability
+//Clutch close error.
+#define error_close errorclose_flag == 1;
+#assert Gear() reaches error_close;
+
+//reachability
+//Clutch speed error.
+#define error_speed errorspeed_flag == 1;
+#assert Gear() reaches error_speed; 
+
+
+#define InfeasibleGoal (false);
+#assert Gear() reaches InfeasibleGoal;             

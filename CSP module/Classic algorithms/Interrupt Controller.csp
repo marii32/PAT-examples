@@ -1,0 +1,41 @@
+﻿// This model is based on the example of Section 2 in
+// Priorities in Process Algebras, by Rance Cleveland and
+// Matthew Hennesy (Information and Computation, 1990).
+
+// The interrupt controller INT should communicate 'i'
+// whenever possible, so that C cannot receive 'up' or 'down'
+// after INT has received 'shut_down'.
+
+// Uncomment one of the priority specifications to make the model work,
+// by using channel priorities (end of these declarations), or
+// process priorities (system declaration).
+
+// Counter modulo (wrap-around).
+#define MODULO 16;
+
+// Input to the counter
+channel up 0;
+channel down 0;
+
+// Shut down request
+channel shutdown 0;
+
+// Internal communication
+channel i 0;
+
+var noOfError = 0;
+
+var count;
+
+Int = shutdown?0 -> i!0 -> Stop;
+
+C = up?0 {count = (count + 1) % MODULO;} -> C [] down?0 {if(count > 0) {count = count - 1;}} -> C [] i?0 -> Stop;
+
+Evn = up!0 -> Evn [] down!0 -> Evn []  shutdown!0 -> ( up!0 -> Error() [] down!0 -> Error());
+
+Error = error{noOfError++} -> Stop;
+
+aSys = Int ||| C ||| Evn;
+
+#define goal noOfError > 0;
+#assert aSys reaches goal;

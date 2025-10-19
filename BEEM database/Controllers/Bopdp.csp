@@ -1,0 +1,128 @@
+﻿/////////////////////////////////////////////////////////////////////////////
+//Controllers :  Bopdp
+//@author Chen Manman
+//@date   16/1/2011
+//@parameter
+//		MAX_AP_INTS   	:    Maximal number of aplication interrupts (255=unbounded).
+//		MAX_LSL_INTS    :    Maximal number of LSL interrupts (255=unbounded).
+//@properties
+//		LTL  	sleeping must not change from 0 to 1 while sleep op has the value 0. (The IOP must not go to sleep if there has been an interrupt.)
+//       LTL  	Every path from active to noise must pass through stand by (The IOP must have been asleep before reaching the noise state where it on its way up due to an interrupt discovers that the interrupt is "false", and hence caused by noise only.)
+//       LTL  	The variable sleeping must not change from 0 to 1 while lsl interrupt is 1 or ap interrupt is 1 (The IOP must not go to sleep as long as there is an untreated interrupt.)
+//       LTL  	 It should not be possible to come from the node stand by to the node active without synchronizing on the channel ap active (The IOP cannot get from stand by mode to active mode without activating the AP.)
+//Description:
+//  This protocol controls the transitions between stand-by mode and power on mode in the company's new series of products, where power consumption minimization is an important feature. (The model is manual translation of the Uppaal model; currently without time) 
+//Source : Formal Verification of a Power Controller Using the Real-Time Model Checker Uppaal. Klaus Havelund, Kim G. Larsen and Arne Skou. Accepted for presentation at 5th International AMAST Workshop on Real-Time and Probabilistic Systems.
+////////////////////////////////////////////////////////////////////////////
+#define MAX_AP_INTS 7;
+#define MAX_LSL_INTS 7;
+var cur = 0;
+var sleeping = 0;
+var sleep_op = 0;
+var sw_stand_by = 0;
+var generated_ap_interrupt = 0;
+var lsl_command = 0;
+var lsl_running = 0;
+var lsl_data = 0;
+var ap_interrupt = 0;
+var enabled_lsl_interrupt = 0;
+var lsl_interrupt = 0;
+var lsl_interrupt_ex = 0;
+var generated_lsl_interrupt = 0;
+var some_running = 0;
+var some_data = 0;
+var some_interrupt = 0;
+var no_lsl_ints = 0;
+channel ap_down 0;
+channel ap_actv 0;
+channel ap_down_ack 0;
+channel ap_down_nack 0;
+channel calc 0;
+/*Process: AP   */
+Actv(no_ap_ints)=ap_actv?0->Actv(no_ap_ints)[][no_ap_ints < MAX_AP_INTS]{generated_ap_interrupt = 1;}->Actv(no_ap_ints+1)[]ap_down!0->Prepare_ack(no_ap_ints);
+Prepare_ack(no_ap_ints)=ap_down!0->Prepare_ack(no_ap_ints)[]ap_down_nack?0->Actv(no_ap_ints)[]ap_down_ack?0->Stand_by(no_ap_ints);
+Stand_by(no_ap_ints)=standby->Actv(no_ap_ints)[]ap_actv?0->Actv(no_ap_ints);
+
+/*Process:LSL_Interrupt_Handler   */
+LSL_int_service()=[cur==0 && enabled_lsl_interrupt==1 && generated_lsl_interrupt == 1]{cur =1; lsl_interrupt_ex =1;}->LSL_Interrupt_received();
+LSL_Interrupt_received()=[cur==1 && sleeping ==0]lsl_received_wake->LSL_Awake()[][cur==1 && sleeping==1]{sleeping =0;}->LSL_Awake();
+LSL_Awake()=[cur==1]{enabled_lsl_interrupt = 0; generated_lsl_interrupt = 0; lsl_interrupt = 1; lsl_interrupt_ex =0; some_interrupt = 1;}->LSL_Check_stand_by();
+LSL_Check_stand_by()=[cur==1 && sw_stand_by==0]{cur = 0;}->LSL_int_service()[][cur == 1 && sw_stand_by==1]lsl_stand_noop->LSL_Insert_noop();
+LSL_Insert_noop()= [ cur == 1]{sleep_op = 0;}->LSL_Clear_stand_by();
+LSL_Clear_stand_by()=[cur ==1]{sw_stand_by=0; cur =0;}->LSL_int_service();
+
+/*Process:AP_Interrupt_Handler   */
+Ap_int_service(old_cur)=[generated_ap_interrupt == 1 && lsl_interrupt_ex == 0]{generated_ap_interrupt = 0;}->AP_Set_cur(old_cur);
+AP_Set_cur(old_cur)= [cur==0]{cur=2;}->AP_Interrupt_received(0)[][cur==1]{ cur=2;}->AP_Interrupt_received(1);
+AP_Interrupt_received(old_cur)=[sleeping==0]AP_re_awake->AP_Awake(old_cur)[][sleeping==1]{sleeping=0;}->AP_Awake(old_cur);
+AP_Awake(old_cur)={enabled_lsl_interrupt =0; generated_lsl_interrupt=0; ap_interrupt =1; some_interrupt=1;}->AP_Check_stand_by(old_cur);
+AP_Check_stand_by(old_cur)=[sw_stand_by==0]ap_by_cr->AP_Reset_cur(old_cur)[][sw_stand_by==1]ap_by_noop->AP_Insert_noop(old_cur);
+AP_Insert_noop(old_cur)={sleep_op=0;}->AP_Clear_stand_by(old_cur);
+AP_Clear_stand_by(old_cur)={sw_stand_by = 0;}->AP_Reset_cur(old_cur);
+AP_Reset_cur(old_cur)=[old_cur == 0]{cur=0;}->Ap_int_service(old_cur)[][old_cur == 1]{cur=1;}->Ap_int_service(old_cur);
+
+/*Process:Interrrupt_Generator         */
+Interrupt_Generator()=[enabled_lsl_interrupt==1 && no_lsl_ints< MAX_LSL_INTS]{generated_lsl_interrupt =1; no_lsl_ints = no_lsl_ints+1;}->Interrupt_Generator();
+
+/*process:LSL_Driver()        */
+LSL_Driver_Stand_by()=[cur==0 && lsl_command==3]{lsl_command=0;}->LSL_Driver_Stand_by()[][cur==0 && lsl_command==1]{lsl_command=0;}->LSL_Driver_Up_down_received()[][cur==0 && lsl_command==2]{lsl_command=0;}->LSL_Driver_Up_down_received();
+LSL_Driver_Up_down_received()=[cur==0]lsl_diver_re->LSL_Driver_React();
+LSL_Driver_React()=[cur==0]{lsl_running=0; lsl_data=0;}->LSL_Driver_Call()[][cur==0]{lsl_running=1; lsl_data=1; some_running=1; some_data=1;}->LSL_Driver_Stand_by();
+LSL_Driver_Call()=calc!0->LSL_Driver_Stand_by();
+
+/*process:Calc      */
+Calc()=calc?0->Calc_data();
+Calc_data()=[lsl_data==1]cal_data->Calc_running()[][lsl_data==0]{some_data = 0;}->Calc_running();
+Calc_running()=[lsl_running==1]cal_run->Calc()[][lsl_running==0]{some_running =0;}->Calc();
+
+/*process:IOP     */
+IOP_Active()=[cur==0]ap_down?0->IOP_down_received();
+IOP_down_received()= IOP_active->IOP_Going_down();
+IOP_Going_down()=[cur==0]{lsl_data=0; some_data=0; lsl_running=1; some_running=1;}->IOP_Clear_interrupts();
+IOP_Clear_interrupts()=[cur==0]{ap_interrupt=0; lsl_interrupt =0; some_interrupt =0;}->IOP_Enable_lsl_interrupt();
+IOP_Enable_lsl_interrupt()=[cur==0]{enabled_lsl_interrupt=1; generated_lsl_interrupt=0;}->IOP_Issue_down_lsl();
+IOP_Issue_down_lsl()=[cur==0]{lsl_command=2;}->IOP_Wait_for_down();
+IOP_Wait_for_down()=[cur==0 && some_running==0]IOP_down_exe->IOP_Down_expected()[][cur==0 && some_data==1]IOP_down_ex->IOP_Down_expected();
+IOP_Down_expected()=[cur==0 && some_data==1]IOP_down_int->IOP_Disable_lsl_interrupt()[][cur==0 && some_data==0]IOP_down_ver->IOP_Down_verified();
+IOP_Down_verified()=ap_down_ack!0->IOP_Insert_noop();
+IOP_Disable_lsl_interrupt()=[cur==0]{ enabled_lsl_interrupt = 0; generated_lsl_interrupt = 0;}->IOP_Issue_active_commands();
+IOP_Issue_active_commands()=[cur==0]{lsl_command=3;}->IOP_Send_nack();
+IOP_Send_nack()=ap_down_nack!0->IOP_Enter_active();
+IOP_Enter_active()=[cur==0]IOP_Ac->IOP_Active();
+IOP_Insert_noop()=[cur==0]{sleep_op = 1;}->IOP_Set_stand_by();
+IOP_Set_stand_by()=[cur==0]{sw_stand_by=1;}->IOP_Check_interrupts();
+IOP_Check_interrupts()=[cur==0 && some_interrupt == 0]IOP_inter_noop->IOP_Check_noop()[][cur==0 && some_interrupt ==1]IOP_inter_wake_up->IOP_Wake_up();
+IOP_Check_noop()=[cur==0 && sleep_op==0]IOP_noop_wake_up->IOP_Wake_up()[][cur==0 && sleep_op==1]{sleeping = 1;}->IOP_W_stand_by();
+IOP_W_stand_by()=[cur==0]IOP_standby->IOP_Stand_by();
+IOP_Stand_by()=[cur==0 && some_interrupt==1]IOP_by_Wake->IOP_Wake_up();
+IOP_Wake_up()=[cur==0]{sw_stand_by=0; lsl_data=0; some_data=0; lsl_running = 1; some_running = 1;}->IOP_Clear_int();
+IOP_Clear_int()=[cur==0]{ap_interrupt=0; lsl_interrupt = 0; some_interrupt = 0;}->IOP_Issue_lsl_up();
+IOP_Issue_lsl_up()=[cur==0]{lsl_command=1;}->IOP_Wait_init_response();
+IOP_Wait_init_response()=[cur==0 && some_running == 0]IOP_ini_exep->IOP_Data_expected()[][cur==0 && some_data == 1]IOP_ini_ex->IOP_Data_expected();
+IOP_Data_expected()=[cur==0 && some_data == 1]IOP_data_act->IOP_S_active()[][cur==0 && some_data == 0]IOP_Data_noise->IOP_Noise();
+IOP_S_active()=ap_actv!0->IOP_Now_wait();
+IOP_Now_wait()=[cur==0]IOP_now_wait->IOP_Active();
+IOP_Noise()=[cur==0]IOP_noise{ lsl_data=0; some_data=0; lsl_running=1; some_running=1;}->IOP_Re_enable_lsl_interrupt();
+IOP_Re_enable_lsl_interrupt()=[cur==0]{enabled_lsl_interrupt=1;}->IOP_Re_issue_lsl_down();
+IOP_Re_issue_lsl_down()=[cur==0]{lsl_command=2;}->IOP_Wait_response();
+IOP_Wait_response()=[cur==0 && some_running == 0]IOP_wait_sta->IOP_Observe_status()[][cur==0 && some_data == 1]IOP_b->IOP_Observe_status();
+IOP_Observe_status()= [cur==0 && some_data == 0]IOP_status_noop->IOP_Insert_noop()[][ cur==0 && some_data == 1]IOP_ober_in->IOP_Clear_lsl_interrupt();
+IOP_Clear_lsl_interrupt()= [cur==0]{enabled_lsl_interrupt = 0; generated_lsl_interrupt = 0;}->IOP_Send_active_command();
+IOP_Send_active_command()= ap_actv!0{lsl_command=3;}->IOP_Back_to_active();
+IOP_Back_to_active()= [cur==0]IOP_back_to_active->IOP_Active();
+
+Bopdp()=Actv(0)|||IOP_Active()|||LSL_Driver_Stand_by()|||LSL_int_service()|||Ap_int_service(0)|||Interrupt_Generator()|||Calc();
+////////////////The Properties//////////////////
+#define interruptPre ((sleeping==0) && (sleep_op==0));
+#define notSleepGoal ((sleeping==0) ||(!(sleep_op==0)));
+#define sleepOP (!(sleep_op==0));
+#assert Bopdp() |= [] (interruptPre->sleepOP R notSleepGoal);//sleeping must not change from 0 to 1 while sleep op has the value 0.
+#assert Bopdp() |= [] (IOP_active -> (IOP_standby R ( (! IOP_noise) || IOP_standby)));//Every path from active to noise must pass through stand by.
+#define untreatedInterruptPre  ((sleeping==0) && (lsl_interrupt==1 || ap_interrupt==1));
+#define stillNotSleepGoal  ((sleeping==0) ||!((lsl_interrupt==1 || ap_interrupt==1)));
+#define interrupton (!(lsl_interrupt==1 || ap_interrupt==1));
+#assert Bopdp() |= [](untreatedInterruptPre->interrupton R stillNotSleepGoal);//The variable sleeping must not change from 0 to 1 while lsl interrupt is 1 or ap interrupt is 1.
+#assert Bopdp() |= [] (IOP_standby -> ((IOP_now_wait || IOP_back_to_active) R ( (! IOP_active) || (IOP_now_wait || IOP_back_to_active))));//The IOP cannot get from stand by mode to active mode without activating the AP.
+#assert Bopdp() deadlockfree;
+#define Infe(false);
+#assert Bopdp() reaches Infe;

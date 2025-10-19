@@ -1,0 +1,141 @@
+﻿/////////////////////////////////////////////////////////////////////////////
+//Controllers :  production_cell
+//@author Chen Manman
+//@date   18/1/2011
+//@parameter
+//		N   	:             Number of plates.
+//		MAX   	:             Number of plates to process. (0=not specified).
+//@properties
+//		reachability  	finished  	The requested number of plates has been porcessed. (meaningful only for MAX != 0)
+//Description:
+//  The system consists of an arbitrary number of lifts. Each lift supports one wheel of a vehicle.
+//  The system is operated by means of buttons on the lifts. Lifts are connected by a bus. The model describes the startup phase and the up/down synchronization mechanism.
+//Source : Analysis of a distributed system for lifting trucks; J.F. Groote; J. Pang; A.G. Wouters; 2001, SEN-R0111, ISSN 1386-369X http://db.cwi.nl/rapporten/abstract.php?abstractnr=1069
+////////////////////////////////////////////////////////////////////////////
+#define N  3;
+#define MAX  1;
+#define EMPTY  255;
+
+#define UNDEF  -1;
+
+channel plt_belt_0 0;
+channel plt_table_0 0;
+channel plt_press_0 0;
+channel plt_deposit_0 0;
+channel plt_belt_1 0;
+channel plt_table_1 0;
+channel plt_press_1 0;
+channel plt_deposit_1 0;
+channel plt_belt_2 0;
+channel plt_table_2 0;
+channel plt_press_2 0;
+channel plt_deposit_2 0;
+channel new_plate 0;
+channel sen 0;
+channel read 0;
+channel put_table 0;
+channel get_table 0;
+channel put_press 0;
+channel get_press 0;
+channel put_deposit 0;
+
+var done=0;
+//Process: Plate_0
+Plate_0()=new_plate!0->Plate_0_wait_belt();
+
+Plate_0_wait_belt()=plt_belt_0!UNDEF->Plate_0_wait_table();
+
+Plate_0_wait_table()=plt_table_0!UNDEF->Plate_0_wait_press();
+
+Plate_0_wait_press()=plt_press_0!UNDEF->Plate_0_wait_deposit();
+
+Plate_0_wait_deposit()=[done< MAX]plt_deposit_0!UNDEF{done=done+1;}->Plate_0();
+
+//Process: Plate_1
+Plate_1()=new_plate!1->Plate_1_wait_belt();
+
+Plate_1_wait_belt()=plt_belt_1!UNDEF->Plate_1_wait_table();
+
+Plate_1_wait_table()=plt_table_1!UNDEF->Plate_1_wait_press();
+
+Plate_1_wait_press()=plt_press_1!UNDEF->Plate_1_wait_deposit();
+
+Plate_1_wait_deposit()=[done< MAX]plt_deposit_1!UNDEF{done=done+1;}->Plate_1();
+
+//Process: Plate_2
+Plate_2()=new_plate!2->Plate_2_wait_belt();
+
+Plate_2_wait_belt()=plt_belt_2!UNDEF->Plate_2_wait_table();
+
+Plate_2_wait_table()=plt_table_2!UNDEF->Plate_2_wait_press();
+
+Plate_2_wait_press()=plt_press_2!UNDEF->Plate_2_wait_deposit();
+
+Plate_2_wait_deposit()=[done< MAX]plt_deposit_2!UNDEF{done=done+1;}->Plate_2();
+
+//Process: Belt
+Belt(m)=new_plate?k->Got_new(k);
+
+Got_new(k)=sen!UNDEF->Q1(k);
+
+Q1(k)=[k==0]plt_belt_0?UNDEF->Q2(k)
+   [][k==1]plt_belt_1?UNDEF->Q2(k)
+   [][k==2]plt_belt_2?UNDEF->Q2(k);
+
+Q2(k)=put_table!k->Belt(k);
+
+//Process: Sensor
+Sensor(count)=sen?UNDEF->Sensor(count+1)
+       [][count>0]read!UNDEF->Sensor(count-1);
+
+//Process: Table
+Table(m)=put_table?k->Down_full(k);
+
+Down_full(k)=[k==0]plt_table_0?UNDEF->Up_full(k)
+        [][k==1]plt_table_1?UNDEF->Up_full(k)
+        [][k==2]plt_table_2?UNDEF->Up_full(k);
+
+Up_full(k)=get_table!k->Up_empty(k);
+
+Up_empty(k)=up_empty->Table(k);
+//Process: Press
+Press(m)=put_press?k->Pressing(k);
+
+Pressing(k)=[k==0]plt_press_0?UNDEF->Done(k)
+         [][k==1]plt_press_1?UNDEF->Done(k)
+         [][k==2]plt_press_2?UNDEF->Done(k);
+
+Done(k)=get_press!k->Press(k);
+
+//Process: Deposit
+Deposit(m)=put_deposit?k->Loaded(k);
+
+Loaded(k)=[k==0]plt_deposit_0?UNDEF->Deposit(k)
+       [][k==1]plt_deposit_1?UNDEF->Deposit(k)
+       [][k==2]plt_deposit_2?UNDEF->Deposit(k);
+
+//Process: Robot
+Robot(A,B,at_press,at_table)=[(B==EMPTY && at_press==1) || (A==EMPTY && at_table==1)]robot_bpress->Bpress(A,B,at_press,at_table)
+         [][at_table==0]read?UNDEF->Robot(A,B,at_press,1)
+         [][(A!=EMPTY && at_press==0) || B!=EMPTY]robot_apress->Apress(A,B,at_press,at_table);
+
+Bpress(A,B,at_press,at_table)=[B==EMPTY && at_press==1]get_press?k->Bpress(A,k,0,at_table)
+          [][A==EMPTY && at_table==1]bpress_atable->Atable(A,B,at_press,at_table)
+          [][(A!=EMPTY && at_press==0) || (B!=EMPTY && (A!=EMPTY || at_table==0))]bpress_wait->Robot(A,B,at_press,at_table);
+
+Atable(A,B,at_press,at_table)=[at_table==1 && A==EMPTY]get_table?k->Atable(k,B,at_press,0)
+          [][A !=EMPTY]atable_bpress->Bpress(A,B,at_press,at_table);
+
+Apress(A,B,at_press,at_table)=[A!=EMPTY && at_press==0]put_press!A->Apress(EMPTY,B,1,at_table)
+          [][B!=EMPTY]apress_bdeposit->Bdeposit(A,B,at_press,at_table)
+          [][(A==EMPTY || at_press==1) && B==EMPTY]apress_robot->Robot(A,B,at_press,at_table);
+
+Bdeposit(A,B,at_press,at_table)=[B!=EMPTY]put_deposit!B->Bdeposit(A,EMPTY,at_press,at_table)
+            [][B==EMPTY]bdep_apress->Apress(A,B,at_press,at_table);
+
+Production_Cell()=Plate_0()|||Plate_1()|||Plate_2()|||Belt(0)|||Sensor(0)|||Table(0)|||Press(0)|||Deposit(0)|||Robot(EMPTY,EMPTY,0,0);
+#assert Production_Cell() deadlockfree;
+#define infe(false);
+#assert Production_Cell() reaches infe;
+#define goal(MAX==done);
+#assert Production_Cell() reaches goal;

@@ -1,0 +1,95 @@
+﻿#import "PAT.Lib.Example";
+
+#define NoOfFloors 2;
+#define NoOfLifts 2;
+
+//The following models the floors; 195 states in total
+#define DOWN -1;
+#define NONE 0;
+#define UP 1;
+#define BOTH 2;
+var FloorButtons[NoOfFloors]; 
+
+PressButton(floor, downOrUp) = request.floor.downOrUp{
+			if (FloorButtons[floor] == NONE) {
+				FloorButtons[floor] = downOrUp 
+			}
+			else if (FloorButtons[floor] != downOrUp) {
+				FloorButtons[floor] = BOTH
+			} 
+		} -> Skip;
+
+TopFloor() = PressButton(NoOfFloors-1,DOWN); TopFloor();
+GroundFloor() = PressButton(0,UP); GroundFloor();
+MiddleFloor(n) = (PressButton(n,DOWN) [] PressButton(n,UP)); MiddleFloor(n);
+Building() = TopFloor() ||| GroundFloor();
+
+//#assert Building deadlockfree;
+
+//the following models the door
+#define t0 3;
+#define maxDoorOpenTime 3;
+#alphabet Door {open, conf, close};
+
+Door() = open -> (CycleDoor; close -> Skip) deadline[maxDoorOpenTime]; Door();
+CycleDoor() = conf -> Wait[t0];  ClosingDoor();
+ClosingDoor() =  (closed -> Skip) interrupt sensor -> ClosingDoor();
+
+//the following models the shaft
+channel move 0;
+#define movingTime 1;
+#define delayTime 1;
+#alphabet Shaft {arrive};
+
+Shaft(i) = move?[id==i]id.n.dir -> Wait[n*movingTime+delayTime]; arrive ->> Shaft(i);
+
+//The following models the internal queues and a process which generates internal requests.
+//Number of States: 64
+var InternalRequest[NoOfLifts][NoOfFloors];
+InternalQ(i) = [] f:{0..NoOfFloors-1}@ intRequest.f{InternalRequest[i][f]=1} -> InternalQ(i);
+
+//the following models the controller a lift 
+#define waitPassengerTime 1;
+channel check 0;
+channel select 0;
+
+#alphabet LiftCtrl {open,arrive,conf,close};
+LiftCtrl(i, floor, dir) = check!floor.dir.call(GetNextDestinationFromInternalQ, InternalRequest, floor, dir, NoOfFloors, i) ->
+	check?des ->
+	case {
+		des == floor : open -> conf -> ClearRequests(i,floor,dir)
+		des > floor : move!(des-floor).UP -> arrive -> open -> conf -> ClearRequests(i,des,UP)
+		des < floor && des >= 0 : move!i.(floor-des).DOWN -> arrive -> open -> conf -> ClearRequests(i,des,DOWN)			
+		default : Wait[delayTime]; LiftCtrl(i, floor, dir)
+	};
+
+ClearRequests(i,floor,dir) = 
+		clearRequest{
+			InternalRequest[i][floor] = 0;
+			if (FloorButtons[floor] == dir) {
+				FloorButtons[floor] = NONE 
+			}
+			else {
+				if (FloorButtons[floor] != NONE) {
+				    FloorButtons[floor] = -1*dir
+			    } 
+			} 
+		} -> close -> LiftCtrl(i, floor, dir);
+
+//the following models a lift
+Lift(i) = (Shaft(i) || Door || LiftCtrl(i, 0, UP) || InternalQ(i)) \{open,conf,close,arrive};
+
+//the following models all the lifts 
+Lifts() = |||i:{0..NoOfLifts-1}@ Lift(i);
+
+//#assert Lifts deadlockfree;
+
+//the following models the central controller.
+CentralController() = check?floor.dir.des -> check!call(GetNextDestinationFromExternalQ, FloorButtons, floor, dir, des, NoOfFloors) -> CentralController();
+
+//The following models the whole system
+System() = Lifts() ||| CentralController() ||| Building();
+#assert System() deadlockfree;
+#define outofbound FloorButtons[0] == -1;
+#assert System() reaches outofbound;
+#assert System() |= [](open -> <>close);

@@ -1,0 +1,125 @@
+﻿/////////////////////////////////////////////////////////////////////////////
+//Algorithm : sorter
+//@author pillar
+//@date   12/22/2011
+//@parameter	
+//		SCENARIO   	: The model includes five scenarios (different combinations of short and long bricks which are inserted on the belt).
+//Description:
+//  The example is a model of a sorter of bricks built using a Lego Mindstorms systems. 
+//The Sorter consists of the following parts: 2 belts which are used to transport 
+//bricks, a light sensor which can detect passing bricks, an arm which can kick 
+//bricks from the belt, a button which is used to "order" bricks for processing. 
+//The intended behaviour of the system is the following. Bricks are placed by 
+//the user on the first belt. Bricks which are too long (length is detected with 
+//the use of light sensor) are kicked out from the belt by the arm. Short bricks 
+//are transported to the second belt. The second belt transports them either to 
+//a "processing" side or to a "not-processing" side depending on whether a brick 
+//has been ordered by pressing the button. Although the system is rather simple 
+//and artificial, it has several features typical for embedded systems. The model 
+//is discrete time. 
+////////////////////////////////////////////////////////////////////////////
+
+////Scenario 1
+#define NUM_SHORT 			1;
+var short[NUM_SHORT][2] = [6,0];
+#define NUM_LONG 			0;
+
+#define FWD				 	1;
+#define	REV					2;
+#define SHORT				3;
+#define LONG				4;
+
+// artificial bounds
+#define MAX_REQ				5;
+#define MAX_TIMER			8;
+
+#define NOT_USED			0;
+#define ON_BELT1 			1;
+#define ON_BELT2 			2;
+#define OUT_KICKED 			3;
+#define OUT_NOT_SELECTED 	4;
+#define OUT_SELECTED 		5;
+
+var token = 0;
+var belt1_moving = FWD;
+var belt2_moving = 0;
+
+var arm_kicking = 0;
+var light_sensor_level = 0;
+var button_pressed = 0;
+var put_short_brick = 0;
+var put_long_brick = 0;
+var requests = 0;
+var timer = 0;
+var brick = 0;
+
+ButtonController() = [token == 0 && button_pressed == 0]button_update.1{token = 1;} -> ButtonController()
+					[][token == 0 && button_pressed == 1 && requests < MAX_REQ]button_update.2{button_pressed = 0 ; requests = requests + 1; token = 1} -> ButtonController()
+					[][token == 0 && button_pressed == 1 && requests == MAX_REQ]button_update.3{button_pressed = 0 ; token = 1;} -> ButtonController();
+					
+ArmController() = [token == 1 && !(brick == LONG && timer > 3)]arm_update.1{token=2;} -> ArmController()
+				[][token == 1 && brick == LONG && timer > 3]arm_update.2{brick = 0; arm_kicking = 1; belt1_moving = 0; token = 2;} -> ([token == 1]arm_update.3{arm_kicking = 0; belt1_moving = 1; token = 2;} -> ArmController());
+				
+var t1 = 0;
+Belt2Controller() = [token == 2 && !(brick == SHORT && timer > 7)] b2_update.1{token = 3} -> Belt2Controller()
+				 [] [token == 2 && brick == SHORT && timer > 7] ready_temp{t1 = 0;} -> ([requests > 0] b2_update.2{belt2_moving = REV; token = 3;} -> Temp()
+				 														[] [requests == 0] b2_update.3{belt2_moving = FWD; token = 3;} -> Temp());
+
+Temp() = [token == 2 && t1 < 4] temp_update.1{token = 3; t1++; } -> Temp()
+		[][token == 2 && t1 == 4] temp_update.2{token = 3} -> Belt2Controller();
+
+var light_x;
+LightController() = [token == 3 && light_sensor_level == 0] light_update.1{token = 4;} -> LightController()
+				[] [token == 3 && light_sensor_level == 1] light_update.2{token = 4; light_x = 1;} -> LightChange();
+
+LightChange() =  [token == 3 && light_sensor_level == 1] lc1_update.1{token = 4; light_x++;} -> LightChange()
+				[][token == 3 && light_sensor_level == 0] lc1_update.2{timer = 0;} -> ([light_x <= 2] lc1_update.3{brick = SHORT; token = 4;} -> LightController()
+																					[][light_x > 2] lc1_update.4{brick = LONG; token = 4;} -> LightController());
+
+TimerStep() = [token == 4 && timer < MAX_TIMER] timer_update.1{timer++; token = 5;} -> TimerStep()
+			[][token == 4 && timer == MAX_TIMER] timer_update.2{token = 5;} -> TimerStep();
+
+User() =  [token == 5] user_update.1{token = 6;} -> User()
+		[][token == 5] user_update.2{button_pressed = 1; token = 6;} -> User()
+		[][token == 5] user_update.3{put_short_brick = 1; token = 6;} -> Wait(1)
+		[][token == 5] user_update.4{put_long_brick = 1; token = 6;} -> Wait(3);
+
+Wait(i) = [token == 5 && i > 0]wait_update.1{token = 6;} -> Wait(i-1)
+		[][token == 5 && i == 0]wait_update.2{token = 6;} -> User();
+
+var s_location[NUM_SHORT];
+var s_position[NUM_SHORT];
+ShortBrick(i) = [token == short[i][0] && s_location[i] == NOT_USED && put_short_brick == 0] short_update.1{token = short[i][1];} -> ShortBrick(i)
+			[] [token == short[i][0] && s_location[i] == NOT_USED && put_short_brick == 1] short_update.2{put_short_brick =0;  token = short[i][1]; s_location[i] = 1; } -> ShortBrick(i)
+			//moving forward
+  		 	[] [token == short[i][0] && s_location[i] == ON_BELT1 && belt1_moving == FWD &&	( 
+  		 																s_position[i] < 3 || s_position[i] == 4 || 
+  		 																(
+  		 																	s_position[i] > 5 && s_position[i] < 10
+  		 																)
+  		 															) ]short_update.3{token = short[i][1]; s_position[i]++; } -> ShortBrick(i)
+  		 	[] [token == short[i][0] && s_location[i] == ON_BELT1 && belt1_moving == FWD && s_position[i] == 3] short_update.4{light_sensor_level = 1; token = short[i][1]; s_position[i]++; } -> ShortBrick(i)
+  		 	[] [token == short[i][0] && s_location[i] == ON_BELT1 && belt1_moving == FWD && s_position[i] == 5] short_update.5{light_sensor_level = 0; token = short[i][1]; s_position[i]++; } -> ShortBrick(i)
+  		 	[] [token == short[i][0] && s_location[i] == ON_BELT1 && s_position[i] == 10 && arm_kicking == 0 && belt1_moving == FWD] short_update.6{ token = short[i][1]; s_position[i]++; } -> ShortBrick(i)
+  		 	[] [token == short[i][0] && s_location[i] == ON_BELT1 && s_position[i] == 11 && arm_kicking == 0  && belt1_moving == FWD] short_update.7{ token = short[i][1]; s_location[i] = ON_BELT2; s_position[i] = 3; } -> ShortBrick(i)
+  		 	// staying
+  		 	[] [token == short[i][0] && s_location[i] == ON_BELT1 && belt1_moving == 0 && s_position[i] < 10] short_update.8{ token = short[i][1]; } -> ShortBrick(i)
+  		 	[] [token == short[i][0] && s_location[i] == ON_BELT1 && belt1_moving == 0 && (s_position[i] == 10 || s_position[i] == 11) && arm_kicking == 0] short_update.9{ token = short[i][1]; } -> ShortBrick(i)
+  		 	// arm kicking
+  		 	[] [token == short[i][0] && s_location[i] == ON_BELT1 && (s_position[i] == 10 || s_position[i] == 11) && arm_kicking == 1] short_update.10{ token = short[i][1]; s_location[i] = OUT_KICKED; } -> ShortBrick(i)
+  		 	//Belt2 moving
+  		 	[] [token == short[i][0] && s_location[i] == ON_BELT2 && belt2_moving == FWD && s_position[i] < 5] short_update.11{ token = short[i][1]; s_position[i]++; } -> ShortBrick(i)
+  		 	[] [token == short[i][0] && s_location[i] == ON_BELT2 && belt2_moving == REV && s_position[i] > 0] long_upadte.12{ token = short[i][1]; s_position[i]--; } -> ShortBrick(i)
+  		 	[] [token == short[i][0] && s_location[i] == ON_BELT2 && belt2_moving == 0] short_update.13{ token = short[i][1]; } -> ShortBrick(i)
+  		 	[] [token == short[i][0] && s_location[i] == ON_BELT2 && belt2_moving == FWD && s_position[i] == 5] short_update.13{ token = short[i][1]; s_location[i] = OUT_NOT_SELECTED; } -> ShortBrick(i)
+  		 	[] [token == short[i][0] && s_location[i] == ON_BELT2 && belt2_moving == REV && s_position[i] == 0] short_update.14{ token = short[i][1]; s_location[i] = OUT_SELECTED; } -> ShortBrick(i)
+  		 	//Out - just pass token
+  		 	[] [s_location[i] == OUT_SELECTED || s_location[i] == OUT_NOT_SELECTED || s_location[i] == OUT_KICKED] short_update.15{ token = short[i][1]; } -> ShortBrick(i);
+  		 	
+Sorter() = 	(|||x:{0..NUM_SHORT-1}@ShortBrick(x))
+		||| ButtonController() ||| ArmController() ||| Belt2Controller()
+		||| LightController() ||| TimerStep() ||| User();
+
+#assert Sorter() deadlockfree;
+#define Infeasible(false);
+#assert Sorter() reaches Infeasible;

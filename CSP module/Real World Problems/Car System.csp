@@ -1,0 +1,106 @@
+﻿/* 
+One of the latest automotive technologies, push-button keyless system, allows you to start
+your car's engine without the hassle of key insertion and offers great convenience. 
+
+Push-button keyless system allows owner with key-fob in her pocket to unlock the door when she is very near the car.
+The driver can slide behind the wheel, with the key-fob in her pocket 
+(briefcase or purse or anywhere inside the car), she can push the start/stop button on the control panel. 
+Shutting off the engine is just as hassle-free, and is accomplished by merely pressing the start/stop button. 
+
+These systems are designed so it is impossible to start the engine without the owner's key-fob
+and it cannot lock your key-fob inside the car because the system will sense it and prevent 
+the user from locking them in.
+
+However, the keyless system can also surprise you as it may allow you to drive the car without key-fob.
+This has happened to Jin Song when his wife droped him to his office on the way to a shopping mall but
+the key-fob was in Jin Song's pocket. At the shopping mall, when the engine was turned off, the car could
+not be locked or re-started again. Jin Song had to take a taxi to the mall to pass the key-fob.
+This really motivated Jin Song to come up the model :-)
+*/
+
+#define N 2;        // number of owners
+
+//enumerations used in the model
+#define far 0;      // owner is out and far away from the car
+#define near 1;     // owner is near and close enough to open/lock the door if he/she has the keyfob
+#define in 2;       // owner is in the car
+
+#define off 0;      // engine is off
+#define on 1;       // engine is on
+
+#define unlock 0;   // door is unlocked but closed
+#define lock 1;     // door is locked (must be closed)
+#define open 2;     // door is open
+
+#define incar -1;    // key is put inside car
+#define faralone -2; // key is put outside and far
+
+var owner[N];       // owners' position. initially, all users are far away from the car
+
+var engine = off;   // engine status, initially off
+var door = lock;    // door status, initially locked
+var key = 0;        // key fob position, initially, it is with first owner
+var moving = 0;     // car moving status, 0 for stop and 1 for moving
+var fuel = 10;      // energy costs, say 1 for a short drive and 5 for a long driving
+
+owner_pos(i) = 
+          [owner[i] == far]towards.i{owner[i] = near;} -> owner_pos(i)
+          []
+          [owner[i] == near]goaway.i{owner[i] = far;} -> owner_pos(i)
+          []
+          [owner[i] == near && door == open && moving==0]getin.i{owner[i] = in; } -> owner_pos(i)
+          []
+          [owner[i] == in && door == open && moving==0]goout.i{owner[i] = near; } -> owner_pos(i);          
+
+key_pos(i) = 
+	         [key == i && owner[i] == in]putincar.i{key = incar;} -> key_pos(i) 
+          [] 
+          [key == i && owner[i] == far]putaway.i{key = faralone;} -> key_pos(i)
+          []
+          [(key == faralone && owner[i] == far) || (key == incar && owner[i] == in)]getkey.i{key = i;} -> key_pos(i);          
+
+door_op(i) = 
+          [key == i && owner[i]==near && door ==lock && moving==0]unlockopen.i{door = open;} -> door_op(i)
+          []
+          [owner[i]==near && door==unlock && moving==0]justopen.i{door = open;} -> door_op(i)
+          []
+          [door != open && owner[i] == in]insideopen.i{door = open;} -> door_op(i)
+          []
+          [door == open]close.i{door = unlock;} -> door_op(i)
+          []
+          [door==unlock&&owner[i]==in]insidelock.i{door=lock;} -> door_op(i)
+          []
+          [door == unlock && owner[i]==near && key==i]outsidelock.i{door=lock;} -> door_op(i);
+        
+motor(i) = 
+          [owner[i]==in&&(key==i||key==incar)&&engine==off&& fuel!= 0]turnon.i{engine = on;} -> motor(i)
+          []
+          [engine==on&&owner[i]==in&&moving==0]startdrive.i{moving=1;} -> motor(i) 
+          []
+          [moving==1&&fuel!=0]shortdrive.i{fuel=fuel-1;if (fuel==0) {engine=off; moving =0;}  } -> motor(i)
+          []
+          [moving==1&&fuel > 5]longdrive.i{fuel=fuel-5;if (fuel==0) {engine=off; moving =0;}} -> motor(i)
+          []
+          [engine==on&&moving==1&&owner[i]==in]stop.i{moving=0;} -> motor(i)
+          []
+          [fuel==0&&engine==off]refill{fuel=10;} -> motor(i)
+          [] 
+          [engine==on&&moving==0&&owner[i]==in]turnoff.i{engine = off;} -> motor(i);
+          
+car =     (|||i:{0..N-1} @ (motor(i) ||| door_op(i) ||| key_pos(i) ||| owner_pos(i)));
+
+#define runwithoutowner (moving==1 && owner[0] == far && owner[1] == far); //can car moving without owner
+#define ownerdrivetogether (moving==1 && owner[0] == in && owner[1] == in); //can ower drives the car
+#define keylockinside (key == incar && door == lock && owner[0] != in && owner[1] != in); // can key be locked inside
+#define drivewithoutengineon (moving==1 && engine==off); //can car move when engine is off
+#define drivewithoutfuel (moving==1&&fuel==0); //can car move without fuel
+#define drivewithoutkeyholdbyother (moving ==1 && owner[1] == in && owner[0] == far && key == 0); //car can be driven without key
+
+#assert car deadlockfree;
+#assert car |= []<> longdrive.0;
+#assert car reaches keylockinside;
+#assert car reaches runwithoutowner;
+#assert car reaches ownerdrivetogether;
+#assert car reaches drivewithoutengineon;
+#assert car reaches drivewithoutfuel;
+#assert car reaches drivewithoutkeyholdbyother;

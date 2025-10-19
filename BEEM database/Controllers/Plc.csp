@@ -1,0 +1,427 @@
+﻿/////////////////////////////////////////////////////////////////////////////
+//Puzzle :  Plc
+//@author Leo Ji
+//@date   16/1/2011
+//@parameter
+//		MAXTIME   	:   Maximal time of progress of the plant
+//@properties
+//	    LTL  	Container B3 is infinitely often full and infinitely often empty.
+//		reachability  	Number of manufactured batches can be larger than 4.
+//		LTL  	The time is still progressing
+//Description:
+//  Model of a PLC (programable logic controler) program for experimental chemical plant. 
+// The plant consist of seven batches, heater, coolers, pumps. The model is a discrete abstraction.
+//Source :  http://anna.fi.muni.cz/models/cgi/model_info.cgi?name=plc
+////////////////////////////////////////////////////////////////////////////
+#define cempt  2;
+#define underf1 0;
+#define underf2 1;
+#define sol42C  3;
+#define sol42H  4;
+#define sol84C  5;
+#define sol84H  6;
+#define sol70C  7;
+#define sol140C  8;
+#define water28C  9;
+#define water28H  10;
+#define water56C  11;
+#define water56H  12;
+#define maxstep 120;
+#define maxtime 100;
+var v8=0; var v9=0; var v11=0; var v12=0; var v13=0; var v15=0; var v17=0; var v29=0;
+var cycle=0;
+var mix=0; var heat=0;
+var p1=0; var p2=0;
+var px[14]=[0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+var B1=sol42C;
+var B2=water28C;
+var B3=cempt;
+var B4=cempt;
+var B5=cempt;
+var B6=cempt;
+var B7=cempt;
+var time=0;
+var tB1B3=0;
+var tB2B3=0;
+var tB3B4=0;
+var tB4B5=0;
+var tB5B7=0;
+var tH=0;
+var tC6=0;
+var tC7=0;
+var tP1=0;
+var tP2=0;
+var batches=0;
+var error=0;
+var atomi=0;
+#define phi(x,y) (((x==1) && (y==1) && (B1==sol42C) && (B3==cempt))
+             ||((x==1) && (y==2) && (B1==sol84C) && (B3==cempt))
+             ||((x==2) && (y==1) && (B2==water28C) && (B3==cempt))
+             ||((x==2) && (y==2) && (B2==water56C) && (B3==cempt))
+             ||((x==3) && (y==1) && (B1==sol42C) && (B3==water28C))
+             ||((x==3) && (y==2) && (B1==sol84C) && (B3==water28C))
+             ||((x==4) && (y==1) && (B2==water28C) && (B3==sol42C))
+             ||((x==4) && (y==2) && (B2==water56C) && (B3==sol42C))
+             ||((x==5) && (y==1) && (B3==sol70C) && (B4==cempt))
+             ||((x==5) && (y==2) && (B3==sol70C) && (B4==sol70C))
+             ||((x==6) && (y==1) && (B4==sol70C) && (B5==cempt))
+             ||((x==6) && (y==2) && (B4==sol140C) && (B5==cempt))
+             ||((x==7) && (y==1) && (B5==sol70C) && (B6==cempt))
+             ||((x==7) && (y==2) && (B5==sol70C) && ((B6==water28C) || (B6==water28H)))
+             ||((x==8) && (y==1) && (B5==sol42H) && (B7==cempt))
+             ||((x==8) && (y==2) && (B5==sol42H) &&((B7==sol42C) || (B7==sol42H)))
+             ||((x==9) && (y==1) && (B7==sol42H))||((x==9) && (y==2) && (B7==sol84H))
+             ||((x==10) && (y==1) && (B6==water28H))
+             ||((x==10) && (y==2) && (B6==water56H))
+             ||((x==11) && (y==1) && (B7==sol42C) && (B1==cempt))
+             ||((x==11) && (y==2) && (B7==sol84C) && (B1==cempt))
+             ||((x==12) && (y==1) && (B7==sol42C) && (B1==sol42C))
+             ||((x==12) && (y==2) && (B7==sol84C) && (B1==sol42C))
+             ||((x==13) && (y==1) && (B6==water28C) && (B2==cempt))
+             ||((x==13) && (y==2) && (B6==water56C) && (B2==cempt))
+             ||((x==14) && (y==1) && (B6==water28C) && (B2==water28C))
+             ||((x==14) && (y==2) && (B6==water56C) && (B2==water28C)));
+#define conpsi(x) ((((x==1) && (px[2]==0) && (px[4]==0) && (px[5]==0) && (px[11]==0))
+                  ||((x==2) && (px[1]==0) && (px[3]==0) && (px[5]==0) && (px[12]==0))
+                  ||((x==3) && (px[2]==0) && (px[4]==0) && (px[5]==0) && (px[11]==0))
+                  ||((x==4) && (px[1]==0) && (px[3]==0) && (px[5]==0) && (px[12]==0))
+                  ||((x==5) && (px[1]==0) && (px[2]==0) && (px[3]==0) && (px[4]==0) && (px[6]==0))
+                  ||((x==6) && (px[5]==0) && (px[7]==0) && (px[8]==0))
+                  ||((x==7) && (px[6]==0) && (px[8]==0) && (px[10]==0) && (px[12]==0))
+                  ||((x==8) && (px[6]==0) && (px[7]==0) && (px[9]==0) && (px[11]==0))
+                  ||((x==9) && (px[8]==0) && (px[11]==0))
+                  ||((x==10) && (px[7]==0) && (px[12]==0))
+                  ||((x==11) && (px[1]==0) && (px[3]==0) && (px[8]==0) && (px[9]==0))
+                  ||((x==12) && (px[1]==0) && (px[3]==0) && (px[8]==0) && (px[9]==0))
+                  ||((x==13) && (px[2]==0) && (px[4]==0) && (px[7]==0) && (px[10]==0))
+                  ||((x==14) && (px[2]==0) && (px[4]==0) && (px[7]==0) && (px[10]==0))));
+#define ppsi(x,y)( call(phi,x, y) && call (conpsi,x));
+#define psi(x)(call(ppsi,x,1)||call(ppsi,x,2));
+#define contheta(x) ((((x==1) || (x==3)) && (!(call(psi,5))))
+                   ||(((x==2) || (x==4)) && (!(call(psi,1))) && (!(call(psi,3))) &&(!(call(psi,5))))
+                   ||((x==5) && (!(call(psi,6))))
+                   ||((x==6) && (!(call(psi,7))) && (!(call(psi,8))))
+                   ||(x==7)
+                   ||((x==8) && (!(call(psi,7))))
+                   ||((x==9) && (!(call(psi,8))))
+                   ||((x==10) && (!(call(psi,7))))
+                   ||(((x==11) || (x==12)) && (!(call(psi,1))) && (!(call(psi,3))) && (!(call(psi,8))) && (!(call(psi,9))))
+                   ||(((x==13) || (x==14)) && (!(call(psi,2))) && (!(call(psi,4))) && (!(call(psi,7))) && (!(call(psi,10)))));
+
+#define theta(x, y) (call(ppsi,x, y) && call(contheta,x));
+
+#define result(x,y) (((x==1) && (y==1) && (B1==cempt) && (B3==sol42C))
+                   ||((x==1) && (y==2) && (B1==sol42C) && (B3==sol42C))
+                   ||((x==2) && (y==1) && (B2==cempt) && (B3==water28C))
+                   ||((x==2) && (y==2) && (B2==water28C) && (B3==water28C))
+                   ||((x==3) && (y==1) && (B1==cempt) && (B3==sol70C))
+                   ||((x==3) && (y==2) && (B1==sol42C) && (B3==sol70C))
+                   ||((x==4) && (y==1) && (B2==cempt) && (B3==sol70C))
+                   ||((x==4) && (y==2) && (B2==water28C) && (B3==sol70C))
+                   ||((x==5) && (y==1) && (B3==cempt) && (B4==sol70C))
+                   ||((x==5) && (y==2) && (B3==cempt) && (B4==sol140C))
+                   ||((x==6) && (y==1) && (B4==cempt) && (B5==sol70C))
+                   ||((x==6) && (y==2) && (B4==sol70C) && (B5==sol70C))
+                   ||((x==7) && (y==1) && (B5==sol42H) && (B6==water28H))
+                   ||((x==7) && (y==2) && (B5==sol42H) && (B6==water56H))
+                   ||((x==8) && (y==1) && (B5==cempt) && (B7==sol42H))
+                   ||((x==8) && (y==2) && (B5==cempt) && (B7==sol84H))
+                   ||((x==9) && (y==1) && (B7==sol42C))
+                   ||((x==9) && (y==2) && (B7==sol84C))
+                   ||((x==10) && (y==1) && (B6==water28C))
+                   ||((x==10) && (y==2) && (B6==water56C))
+                   ||((x==11) && (y==1) && (B7==cempt) && (B1==sol42C))
+                   ||((x==11) && (y==2) && (B7==sol42C) && (B1==sol42C))
+                   ||((x==12) && (y==1) && (B7==cempt) && (B1==sol84C))
+                   ||((x==12) && (y==2) && (B7==sol42C) && (B1==sol84C))
+                   ||((x==13) && (y==1) && (B6==cempt) && (B2==water28C))
+                   ||((x==13) && (y==2) && (B6==water28C) && (B2==water28C))
+                   ||((x==14) && (y==1) && (B6==cempt) && (B2==water56C))
+                   ||((x==14) && (y==2) && (B6==water28C) && (B2==water56C)));
+B1toB3()=[(cycle==0)&&(B1!=cempt)&&(v8==1)&&(atomi==0)]{atomi=1;}->B1toB3one1();
+B1toB3one1()=[(B1==sol42C)]{B1=underf1;}->B1toB3one2()
+          [] [(B1==sol84C)]{B1=underf2;}->B1toB3one2();
+B1toB3one2()=[(B3==cempt)]{B3=underf1;}->B1toB3one3()
+	         [] [((B3==water28C) && (mix==1))]{B3=underf2;}->B1toB3one3()
+	         [] [((B3!=cempt) && ((B3!=water28C) || ((mix!=1))))]{error=1;}->B1toB3one2();
+B1toB3one3()={tB1B3=time+32; cycle=1; atomi=0;}->B1toB3init2();
+B1toB3init2()=[(time==tB1B3) && (cycle==0) && (v8==1) && (atomi==0)]{atomi=1;}->B1toB3two1();
+B1toB3two1()=[(B1==underf1)]{B1=cempt;}->B1toB3two2()
+	         [] [(B1==underf2)]{B1=sol42C;}->B1toB3two2();
+B1toB3two2()=[(B3==underf1)]{B3=sol42C;}->B1toB3two3()
+	         [] [((B3==underf2)&&(mix==1))]{B3=sol70C;}->B1toB3two3()
+          [] [((B3!=underf1) && ((B3!=underf2) || (!(mix==1))))]{error=2;}->B1toB3two2();
+B1toB3two3()={cycle=1;atomi=0;}->B1toB3();
+B2toB3()=[(cycle==0)&&(B2!=cempt)&&(v9==1)&&(atomi==0)]{atomi=1;}->B2toB3one1();
+B2toB3one1()=[(B2==water28C)]{B2=underf1;}->B2toB3one2()
+       	 [] [(B2==water56C)]{B2=underf2;}->B2toB3one2()
+	         [] b2tob3one-> B2toB3one2();
+B2toB3one2()=[(B3==cempt)]{B3=underf1;}->B2toB3one3()
+	         [] [((B3==sol42C) && (mix==1))]{B3=underf2;}->B2toB3one3()
+      	 [] [((B3!=cempt) && ((B3!=sol42C) || ((mix!=1))))]{error=3;}->B2toB3one2();
+B2toB3one3()={tB2B3=time+24; cycle=1; atomi=0;}->B2toB3init2();
+B2toB3init2()=[(time==tB2B3) && (cycle==0) && (v9==1) && (atomi==0)]{atomi=1;}->B2toB3two1();
+B2toB3two1()=[(B2==underf1)]{B2=cempt;}->B2toB3two2()
+    	     [] [(B2==underf2)]{B2=water28C}->B2toB3two2()
+	         [] b2tob3two-> B2toB3two2();
+B2toB3two2()=[(B3==underf1)]{B3=water28C;}->B2toB3two3()
+	         [] [((B3==underf2) && (mix==1))]{B3=sol70C;}->B2toB3two3()
+	         [] [((B3!=underf1) && ((B3!=underf2) || (mix!=1)))]{error=4;}->B2toB3two2();
+B2toB3two3()={cycle=1; atomi=0;}->B2toB3();
+B3toB4()=[(cycle==0)&&(B3==sol70C)&&(v11==1)&&(atomi==0)]{atomi=1;}->B3toB4one1();
+B3toB4one1()=[(B4!=sol140C)]{B3=underf1;}->B3toB4one2()
+	         [] [(B4==sol140C)]{error=5;}->B3toB4one1();
+B3toB4one2()=[(B4==cempt)]{B4=underf1;}->B3toB4one3()
+	         [] [((B4==sol70C))]{B4=underf2;}->B2toB3one3()
+	         [] [((B4!=cempt) && ((B4!=sol70C) ))]{error=6;}->B3toB4one2();
+B3toB4one3()={tB3B4=time+7; batches=batches+1; cycle=1;atomi=0;}->B3toB4init2();
+B3toB4init2()=[(time==tB3B4) && (cycle==0) && (v11==1) && (atomi==0)]{atomi=1;}->B3toB4two1();
+B3toB4two1()=[(B4!=sol140C)]{B3=cempt;}->B3toB4two2()
+	         [] [(B4==sol140C)]{error=7;}->B3toB4two1();
+B3toB4two2()=[(B4==underf1)]{B4=sol70C;}->B3toB4two3()
+	         [] [(B4==underf2)]{B4=sol140C;}->B3toB4two3()
+	         [] [((B4!=underf1) && (B4!=underf2))]{error=8;}->B3toB4two2();
+B3toB4two3()={cycle=1; atomi=0;}->B3toB4();
+B4toB5()=[(cycle==0)&&(B4!=cempt)&&(v12==1)&&(atomi==0)]{atomi=1;}->B4toB5one1();
+B4toB5one1()=[(B5==cempt)]{B5=underf1;}->B4toB5one2()
+	         [] [(B5!=cempt)]{error=9;}->B4toB5one1();
+B4toB5one2()=[(B4==sol70C)]{B4=underf1;}->B4toB5one3()
+	         [] [((B4==sol140C))]{B4=underf2;}->B4toB5one3()
+       	 []  b4tob5one-> B4toB5one3();
+B4toB5one3()={tB4B5=time+35;cycle=1; atomi=0;}->B4toB5init2();
+B4toB5init2()=[(time==tB4B5) && (cycle==0) && (v12==1) && (atomi==0)]{atomi=1;}->B4toB5two1();
+B4toB5two1()=[(B5==underf1)]{B5=sol70C;}->B4toB5two2()
+	         [] [(B5!=underf1)]{error=10;}->B4toB5two1();
+B4toB5two2()=[(B4==underf1)]{B4=cempt;}->B4toB5two3()
+	         [] [(B4==underf2)]{B4=sol70C;}->B4toB5two3();
+B4toB5two3()={cycle=1; atomi=0;}->B4toB5();
+Heat5()= [(cycle==0) && (heat==1) && (atomi==0)]{atomi=1;}->Heat5one1();
+Heat5one1()= [(B5==sol70C) ]{ B5=underf1; }->Heat5one2()
+	         [] [(B5!=sol70C)]{error=11; }->Heat5one1();
+Heat5one2()=[ ((v13==1) && (B6==cempt))]{B6=underf1;}->Heat5one3()
+	         [] [((v13==1) && (B6==water28H))]{B6=underf2;}->Heat5one3()
+	         [] [ ((v13==1) && ((B6==water28C)))]{B6=underf2;}->Heat5one3()
+	         [] [((v13==1) && (B6!=cempt) && (B6!=water28H) && (B6==water28C))]{error=12;}->Heat5one2()
+	         [] [(v13!=1)]heatone-> Heat5one3();
+Heat5one3()= {tH=time+110; cycle=1;atomi=0; }->Heat5one2init();
+Heat5one2init()= [((time==tH) && (cycle==0) && (heat==1) && (atomi==0))]  {atomi=1;}->Heat5two1();
+Heat5two1()=[(B5==underf1)]{B5=sol42H; }->Heat5two2()
+         [] [(B5!=underf1)]{error=13;}->Heat5two1();
+Heat5two2() =[((v13==1) && (B6==underf1))] { B6=water28H; }->Heat5two3()
+	        [] [((v13==1) && (B6==underf2))]{B6=water56H;}->Heat5two3()
+	        [] [((v13==1) && (B6!=underf1) && (B6!=underf2))]{error=14;}->Heat5two2()
+	        [] [(v13!=1)]heattwo->Heat5two3();
+Heat5two3() ={cycle=1;atomi=0; }->Heat5();
+B5toB7()=  [ ((cycle==0) && (B5!=cempt) && (v15==1) && (atomi==0))] {atomi=1;}->B5toB7one1();
+B5toB7one1() = [(B5==sol42H)] { B5=underf1; }->B5toB7one2()
+	        [] [(B5!=sol42H)]{error=15;}->B5toB7one1();
+B5toB7one2() =  [ (B7==cempt)]{B7=underf1;}->B5toB7one3()
+	        [] [((B7==sol42H) || (B7==sol42C))]{B7=underf2;}->B5toB7one3()
+	        [] [((B7!=cempt) && (B7!=sol42H) && (B7==sol42C))]{error=16}->B5toB7one2();
+B5toB7one3() = {tB5B7=time+28; cycle=1; atomi=0; }->B5toB7init2();
+B5toB7init2()= [(time==tB5B7) && (cycle==0) && (v15==1) && (atomi==0)]{ atomi=1; }->B5toB7two1();
+B5toB7two1() = [(B5==underf1) ]{ B5=cempt; }->B5toB7two2()
+	        [] [(B5!=underf1)]{error=17}->B5toB7two1();
+B5toB7two2() = [ (B7==underf1)]{B7=sol42H; }->B5toB7two3()
+	        [] [(B7==underf2)]{B7=sol84H;}->B5toB7two3()
+	        [] [((B7!=underf1) && (B7!=underf2))]{error=18;}->B5toB7two2();
+B5toB7two3() = {cycle=1; atomi=0; } ->B5toB7();
+Cool6()=[(cycle==0) && (v29==1) && (atomi==0)]{atomi=1;}->Cool6one1(); 
+Cool6one1()=[(B6==water28H)]{B6=underf1; tC6=time+30;}->Cool6one2()
+	        [] [(B6==water56H)]{B6=underf2; tC6=time+60;}->Cool6one2()
+	        [] [((B6!=water28H) && (B6!=water56H))]{error=19;}->Cool6one1();
+Cool6one2()={cycle=1; atomi=0; }->Cool6inits2(); 
+Cool6inits2()=[((time==tC6) && (cycle==0) && (v29==1) && (atomi==0))]{atomi=1;}->Cool6two1();
+Cool6two1()=[(B6==underf1)]{B6=water28C; }->Cool6two2()
+	        [] [(B6==underf2)]{B6=water56C;}->Cool6two2()
+	        [] [((B6!=underf1) && (B6!=underf2))]{error=20;}->Cool6two1();
+Cool6two2()={ cycle=1; atomi=0; }->Cool6();
+Cool7()=[(cycle==0) && (v17==1) && (atomi==0)]{atomi=1;}-> Cool7one1();
+Cool7one1()=[(B7==sol42H)]{B7=underf1; tC7=time+60; }->Cool7one2()
+	        [] [(B7==sol84H)]{B7=underf2; tC7=time+120;}->Cool7one2()
+	        [] [((B7!=sol42H) && (B7!=sol84H))]{error=21;}->Cool7one1();
+Cool7one2()={cycle=1;atomi=0; }->Cool7inits2();
+Cool7inits2()=[(time==tC7) && (cycle==0) && (v17==1) && (atomi==0)] {atomi=1; }->Cool7two1();
+Cool7two1()=[(B7==underf1)] { B7=sol42C; }->Cool7two2()
+	        [] [(B7==underf2)]{B7=sol84C;}->Cool7two2()
+	        [] [((B7!=underf1) && (B7!=underf2))]{error=22;}->Cool7two1();
+Cool7two2()={cycle=1; atomi=0; }->Cool7();
+Pump1()=[((cycle==0) && (B7!=cempt) && (p1==1) && (atomi==0))]{atomi=1;}->Pump1one1();
+Pump1one1()=[(B7==sol42C)]{ B7=underf1; }->Pump1one2()
+	        [] [(B7==sol84C)]{B7=underf2;}->Pump1one2()
+	        [] [((B7!=sol42C) && (B7!=sol84C))]{error=23;}->Pump1one1();
+Pump1one2()=[(B1==cempt)]{B1=underf1; }->Pump1one3()
+	        [] [(B1==sol42C)]{B1=underf2;}->Pump1one3()
+         [] [((B1!=cempt) && (B1!=sol42C))]{error=24;}->Pump1one2();
+Pump1one3()={tP1=time+22; cycle=1; atomi=0; }-> Pump1inits2();
+Pump1inits2()=[(time==tP1) && (cycle==0) && (p1==1) && (atomi==0)] {atomi=1; }->Pump1two1();
+Pump1two1()=[(B7==underf1)]{ B7=cempt; }->Pump1two2()
+	        [] [(B7==underf2) ]{B7=sol42C;}->Pump1two2()
+	        [] [((B7!=underf1) && (B7!=underf2))]{error=25;}->Pump1two1();
+Pump1two2()=[(B1==underf1)]{B1=sol42C; }->Pump1two3()
+	        [] [(B1==underf2)]{B1=sol84C;}->Pump1two3()
+	        [] [((B1!=underf1) && (B1!=underf2))]{error=26;}->Pump1two2();
+Pump1two3()={cycle=1; atomi=0 }->Pump1();
+Pump2()=[(cycle==0) && (B6!=cempt) && (p2==1) && (atomi==0)]{atomi=1;}->Pump2one1();
+Pump2one1()=[ (B6==water28C)]{ B6=underf1;}->Pump2one2()
+	        [] [(B6==water56C)]{B6=underf2;}->Pump2one2()
+	        [] [((B6!=water28C) && (B6!=water56C))]{error=27;}->Pump2one1();
+Pump2one2()=[ (B2==cempt)]{B2=underf1; }->Pump2one3()
+	        [] [(B2==water28C)]{ B2=underf2;}->Pump2one3()
+	        [] [((B2!=cempt) && (B2!=water28C))]{error=28;}->Pump2one2();
+Pump2one3()={tP2=time+24;cycle=1;atomi=0; }->Pump2inits2();
+Pump2inits2()=[(time==tP2) && (cycle==0) && (p2==1) && (atomi==0)] {atomi=1; }->Pump2two1();
+Pump2two1()=[(B6==underf1)]{B6=cempt;}->Pump2two2()
+	        [] [(B6==underf2)]{B6=water28C;}->Pump2two2()
+	        [] [((B6!=underf1) && (B6!=underf2))]{error=29;}->Pump2two1();
+Pump2two2()=[(B2==underf1)]{B2=water28C; }->Pump2two3()
+	        [] [(B2==underf2)] {B2=water56C; }->Pump2two3()
+     	[] [((B2!=underf1) && (B2!=underf2))]{error=30;}->Pump2two2() ;
+Pump2two3()={cycle=1; atomi=0 }->Pump2();
+var i=0;
+var j=0;
+var last=0;
+Control()=[((time<maxtime) && (atomi==0))] {atomi=1;i=1;j=1; }->Controlone1()
+	      [] [(time>=maxtime)]conend->End();
+End()=Skip;
+Controlone1()=[(i<15)]control1->Controlone2()
+	          [] [(i==15)]{i=1;j=1;last=1;}->Controltwo1();
+	
+Controlone2()=[((call(result,i,j)) && ((i<12)&&(px[i]==1)))]con3.0->Controlone3()
+	          [] [((call(result,i,j)) && ((i==12)&&(px[11]==1)))]con3.1->Controlone3()
+	          [] [((call(result,i,j)) && ((i>12)&&(px[12]==1)))]con3.2->Controlone3()
+	          [] [((!(call(result,i,j))) || ((i<12)&&(px[i]==0)))]con3.3->Controlone4()
+	          [] [((!(call(result,i,j))) || ((i==2)&&(px[11]==0)))]con3.4->Controlone4()
+        	  [] [((!(call(result,i,j))) || ((i>12)&&(px[12]==0)))]con3.5->Controlone4();
+Controlone3()= [ (i==1)]{ px[1]=0; v8=0; }->Controlone4()
+	          [] [(i==2)]{px[2]=0;v9=0;}->Controlone4()
+	          [] [(i==3)]{px[3]=0; v8=0; mix=0;}->Controlone4()
+	          [] [(i==4)]{px[4]=0; v9=0; mix=0;}->Controlone4()
+	          [] [(i==5)]{px[5]=0; v11=0;}->Controlone4()
+           [] [(i==6)]{px[6]=0;v12=0;}->Controlone4()
+    	      [] [(i==7)]{px[7]=0;heat=0;v13=0;}->Controlone4()
+	          [] [(i==8)]{px[8]=0;v15=0;}->Controlone4()
+	          [] [(i==9)]{px[9]=0;v17=0;}->Controlone4()
+	          [] [(i==10)]{px[10]=0; v29=0;}->Controlone4()
+	          [] [((i==11) || (i==12))]{px[11]=0; p1=0;}->Controlone4()
+	          [] [((i==13) || (i==14))]{px[12]=0; p2=0;}->Controlone4();
+Controlone4()=[(j==1)]{j=2;}->Controlone1()
+	          [] [(j==2)]{j=1; i=i+1;}->Controlone1();
+Controltwo1()=[i<15]Controltwo2()[] [(i==15)]contwo->Controlthree();
+Controltwo2()=[((i==1) && ( call(theta,i,j)) && (px[1]==0))]{px[1]=1; v8=1;}->Controltwo3()
+           [] [((i==2) && (call(theta,i,j)) && (px[2]==0))]{px[2]=1;v9=1}->Controltwo3()
+           [] [((i==3) && (call(theta,i,j)) && (px[3]==0))]{px[3]=1;v8=1;mix=1}->Controltwo3()
+           [] [((i==4) && (call(theta,i,j)) && (px[4]==0))]{px[4]=1;v9=1;mix=1}->Controltwo3()
+           [] [((i==5) && (call(theta,i,j)) && (px[5]==0))]{px[5]=1;v11=1}->Controltwo3()
+           [] [((i==6) && (call(theta,i,j)) && (px[6]==0))]{px[6]=1;v12=1}->Controltwo3()
+           [] [((i==7) && (call(theta,i,j)) && (px[7]==0))]{px[7]=1;v13=1;heat=1}->Controltwo3()
+           [] [((i==8) && (call(theta,i,j)) && (px[8]==0))]{px[8]=1;v15=1}->Controltwo3()
+           [] [((i==9) && (call(theta,i,j)) && (px[9]==0))]{px[9]=1;v17=1}->Controltwo3()
+           [] [((i==10) && (call(theta,i,j)) && (px[10]==0))]{px[10]=1;v29=1}->Controltwo3()
+           [] [((i==11) && (call(theta,i,j)) && (px[11]==0))]{px[11]=1;p1=1}->Controltwo3()
+           [] [((i==12) && (call(theta,i,j)) && (px[11]==0))]{px[11]=1;p1=1}->Controltwo3()
+           [] [((i==13) && (call(theta,i,j)) && (px[12]==0))]{px[12]=1;p2=1}->Controltwo3()
+           [] [((i==14) && (call(theta,i,j)) && (px[12]==0))]{px[12]=1;p2=1}->Controltwo3()
+           [] [((i<12) &&  (px[i]==0))&& (call(theta,i,j))]{last=i;}->Controltwo3()
+           [] [((i==12) && (px[11]==0))&& (call(theta,i,j))]{last=i;}->Controltwo3()
+           [] [((i>12)  && (px[12]==0))&& (call(theta,i,j))]{last=i;}->Controltwo3()
+           [] [((!(call(theta,i,j))) || ((i<12)&&(px[i]==1)))]contwo2.1->Controltwo3()
+           [] [((!(call(theta,i,j))) || ((i==12)&&(px[11]==1)))]contwo2.2->Controltwo3()
+           [] [((!(call(theta,i,j))) || ((i>12)&&(px[12]==1)))]contwo2.3->Controltwo3();
+Controltwo3()=[(j==1)]{j=2;}->Controltwo1()
+        	  [] [(j==2)]{j=1; i=i+1;}->Controltwo1();
+Controlthree()=[((px[1]==0) && (px[2]==0) && (px[3]==0) && 
+	(px[4]==0) && (px[5]==0) && (px[6]==0) && (px[7]==0) && (px[8]==0) && 
+	(px[9]==0) && (px[10]==0) && (px[11]==0) && (px[12]==0) && (last==1))]{cycle=0; px[1]=1; v8=1; atomi=0;}	->Control()
+	[] [((px[1]==0) && (px[2]==0) && (px[3]==0) && 
+	(px[4]==0) && (px[5]==0) && (px[6]==0) && (px[7]==0) && (px[8]==0) && 
+	(px[9]==0) && (px[10]==0) && (px[11]==0) && (px[12]==0) && (last==2))]{cycle=0; px[2]=1; v9=1; atomi=0; }	->Control()
+	[] [((px[1]==0) && (px[2]==0) && (px[3]==0) && 
+	(px[4]==0) && (px[5]==0) && (px[6]==0) && (px[7]==0) && (px[8]==0) && 
+	(px[9]==0) && (px[10]==0) && (px[11]==0) && (px[12]==0) && (last==3))]{cycle=0; px[3]=1; v8=1;mix=1; atomi=0; }->Control()
+	[] [((px[1]==0) && (px[2]==0) && (px[3]==0) && 
+	(px[4]==0) && (px[5]==0) && (px[6]==0) && (px[7]==0) && (px[8]==0) && 
+	(px[9]==0) && (px[10]==0) && (px[11]==0) && (px[12]==0) && (last==4))]{cycle=0; px[4]=1; v9=1;mix=1; atomi=0; }	->Control()
+	[] [((px[1]==0) && (px[2]==0) && (px[3]==0) && 
+	(px[4]==0) && (px[5]==0) && (px[6]==0) && (px[7]==0) && (px[8]==0) && 
+	(px[9]==0) && (px[10]==0) && (px[11]==0) && (px[12]==0) && (last==5))]{cycle=0; px[5]=1; v11=1; atomi=0; }	->Control()
+	[] [((px[1]==0) && (px[2]==0) && (px[3]==0) && 
+	(px[4]==0) && (px[5]==0) && (px[6]==0) && (px[7]==0) && (px[8]==0) && 
+	(px[9]==0) && (px[10]==0) && (px[11]==0) && (px[12]==0) && (last==6))]{cycle=0; px[6]=1; v12=1; atomi=0; }	->Control()
+	[] [((px[1]==0) && (px[2]==0) && (px[3]==0) && 
+	(px[4]==0) && (px[5]==0) && (px[6]==0) && (px[7]==0) && (px[8]==0) && 
+	(px[9]==0) && (px[10]==0) && (px[11]==0) && (px[12]==0) && (last==7))]{cycle=0; px[7]=1; v13=1; heat=1;atomi=0; }	->Control()
+	[] [((px[1]==0) && (px[2]==0) && (px[3]==0) && 
+	(px[4]==0) && (px[5]==0) && (px[6]==0) && (px[7]==0) && (px[8]==0) && 
+	(px[9]==0) && (px[10]==0) && (px[11]==0) && (px[12]==0) && (last==8))]{cycle=0; px[8]=1; v15=1; atomi=0; }	->Control()
+	[] [((px[1]==0) && (px[2]==0) && (px[3]==0) &&
+	(px[4]==0) && (px[5]==0) && (px[6]==0) && (px[7]==0) && (px[8]==0) && 
+	(px[9]==0) && (px[10]==0) && (px[11]==0) && (px[12]==0) && (last==9))]{cycle=0; px[9]=1; v17=1; atomi=0; }	->Control()
+	[] [((px[1]==0) && (px[2]==0) && (px[3]==0) && 
+	(px[4]==0) && (px[5]==0) && (px[6]==0) && (px[7]==0) && (px[8]==0) && 
+	(px[9]==0) && (px[10]==0) && (px[11]==0) && (px[12]==0) && (last==10))]{cycle=0; px[10]=1; v29=1; atomi=0; }	->Control()
+	[] [((px[1]==0) && (px[2]==0) && (px[3]==0) && 
+	(px[4]==0) && (px[5]==0) && (px[6]==0) && (px[7]==0) && (px[8]==0) && 
+	(px[9]==0) && (px[10]==0) && (px[11]==0) && (px[12]==0) && (last==11))]{cycle=0; px[11]=1; p1=1; atomi=0; }	->Control()
+	[] [((px[1]==0) && (px[2]==0) && (px[3]==0) && 
+	(px[4]==0) && (px[5]==0) && (px[6]==0) && (px[7]==0) && (px[8]==0) && 
+	(px[9]==0) && (px[10]==0) && (px[11]==0) && (px[12]==0) && (last==12))]{cycle=0; px[11]=1; p1=1; atomi=0; }	->Control()
+	[] [((px[1]==0) && (px[2]==0) && (px[3]==0) && 
+	(px[4]==0) && (px[5]==0) && (px[6]==0) && (px[7]==0) && (px[8]==0) && 
+	(px[9]==0) && (px[10]==0) && (px[11]==0) && (px[12]==0) && (last==13))]{cycle=0; px[12]=1; p2=1; atomi=0; }	->Control()
+	[] [((px[1]==0) && (px[2]==0) && (px[3]==0) && 
+	(px[4]==0) && (px[5]==0) && (px[6]==0) && (px[7]==0) && (px[8]==0) && 
+	(px[9]==0) && (px[10]==0) && (px[11]==0) && (px[12]==0) && (last==14))]{cycle=0; px[12]=1; p2=1; atomi=0; }	->Control()
+	[] [((px[1]==1) || (px[2]==1) || (px[3]==1) || 
+	(px[4]==1) || (px[5]==1) || (px[6]==1) || (px[7]==1) || (px[8]==1) || 
+	(px[9]==1) || (px[10]==1) || (px[11]==1) || (px[12]==1))]{cycle=0; atomi=0; }	->Control();
+ var ia=0;
+ var minstep=0;
+Advance()=[((atomi==0) && ((((px[1]==1) || (px[2]==1) || 
+	(px[3]==1) || (px[4]==1) || (px[5]==1) || (px[6]==1) || (px[7]==1) || 
+	(px[8]==1) || (px[9]==1) || (px[10]==1) || (px[11]==1) || (px[12]==1)) 
+	&& ((px[1]==0) || ((B1<2) && (B3<2) && (tB1B3>time))) &&
+          ((px[2]==0) || ((B2<2) && (B3<2) && (tB2B3>time))) &&
+           ((px[3]==0) || ((B1<2) && (B3<2) && (tB1B3>time))) &&
+           ((px[4]==0) || ((B2<2) && (B3<2) && (tB2B3>time))) &&
+           ((px[5]==0) || ((B3<2) && (B4<2) && (tB3B4>time))) &&
+           ((px[6]==0) || ((B4<2) && (B5<2) && (tB4B5>time))) &&
+           ((px[7]==0) || ((B5<2) && (B6<2) && (tH>time))) &&
+           ((px[8]==0) || ((B5<2) && (B7<2) && (tB5B7>time))) &&
+          ((px[9]==0) || ((B7<2) && (v17==1) && (tC7>time))) &&
+           ((px[10]==0) || ((B6<2) && (v29==1) && (tC6>time))) &&
+           ((px[11]==0) || ((B7<2) && (B1<2) && (tP1>time))) &&
+           ((px[12]==0) || ((B6<2) && (B2<2) && (tP2>time))))))]{atomi=1; minstep=maxstep; ia=1;}->Advanceone1();
+Advanceone1()=[((ia==1) && (px[1]==1) && ((tB1B3-time)<minstep))] {minstep=(tB1B3-time); ia=2;}  -> Advanceone1()
+	[] [((ia==2) && (px[2]==1) && ((tB2B3-time)<minstep))]{minstep=(tB2B3-time); ia=3;} ->  Advanceone1()
+	[] [((ia==3) && (px[3]==1) && ((tB1B3-time)<minstep))]{minstep=(tB1B3-time); ia=4;} ->  Advanceone1()
+	[] [((ia==4) && (px[4]==1) && ((tB2B3-time)<minstep))]{minstep=(tB2B3-time); ia=5;} ->  Advanceone1()
+	[] [((ia==5) && (px[5]==1) && ((tB3B4-time)<minstep))]{ minstep=(tB3B4-time); ia=6;} ->  Advanceone1()
+	[] [((ia==6) && (px[6]==1) && ((tB4B5-time)<minstep))]{ minstep=(tB4B5-time); ia=7;} ->  Advanceone1()
+	[] [((ia==7) && (px[7]==1) && ((tH-time)<minstep))]{minstep=(tH-time); ia=8;} ->  Advanceone1()
+	[] [((ia==8) && (px[8]==1) && ((tB5B7-time)<minstep))]{ minstep=(tB5B7-time); ia=9;} ->  Advanceone1()
+	[] [((ia==9) && (px[9]==1) && ((tC7-time)<minstep))]{minstep=(tC7-time); ia=10;} ->  Advanceone1()
+	[] [((ia==10) && (px[10]==1) && ((tC6-time)<minstep))]{minstep=(tC6-time); ia=11;} ->  Advanceone1()
+	[] [((ia==11) && (px[11]==1) && ((tP1-time)<minstep))]{minstep=(tP1-time); ia=12;} ->  Advanceone1()
+	[] [((ia==12) && (px[12]==1) && ((tP2-time)<minstep))]{minstep=(tP2-time); ia=13;} ->  Advanceone1()
+	[] [((ia==1) && ((px[1]==0) || ((tB1B3-time)>=minstep)))]{ia=2;} ->  Advanceone1()
+	[] [((ia==2) && ((px[2]==0) || ((tB2B3-time)>=minstep)))]{ ia=3;} ->  Advanceone1()
+	[] [((ia==3) && ((px[3]==0) || ((tB1B3-time)>=minstep)))]{ ia=4;} ->  Advanceone1()
+	[] [((ia==4) && (px[4]==0) || ((tB2B3-time)>=minstep))]{ ia=5;} ->  Advanceone1()
+	[] [((ia==5) && ((px[5]==0) || ((tB3B4-time)>=minstep)))]{ia=6;} ->  Advanceone1()
+	[] [((ia==6) && ((px[6]==0) || ((tB4B5-time)>=minstep)))]{  ia=7;} ->  Advanceone1()
+	[] [((ia==7) && ((px[7]==0) || ((tH-time)>=minstep)))]{ia=8;} ->  Advanceone1()
+	[] [((ia==8) && ((px[8]==0) || ((tB5B7-time)>=minstep)))]{ ia=9;} ->  Advanceone1()
+	[] [((ia==9) && ((px[9]==0) || ((tC7-time)>=minstep)))]{  ia=10;} ->  Advanceone1()
+	[] [((ia==10) && ((px[10]==0) || ((tC6-time)>=minstep)))]{  ia=11;} ->  Advanceone1()
+	[] [((ia==11) && ((px[11]==0) || ((tP1-time)>=minstep)))]{ia=12;} ->  Advanceone1()
+	[] [((ia==12) && ((px[12]==0) || ((tP2-time)>=minstep)))]{ ia=13;} ->  Advanceone1()
+	[] [(ia==13)]{ time=time+minstep;atomi=0;} ->  Advance();
+ Aim()=B1toB3()|||B2toB3()|||B3toB4()|||B4toB5()|||Heat5()|||B5toB7()|||Cool6()|||Cool7()|||Pump1()|||Pump2()|||Control()|||Advance();
+#define goal (batches>=5);
+#assert Aim() reaches goal;
+#define end (time>=maxtime);
+#assert Aim() |= <> end; 
+#define b3sol(B3 == sol70C);
+#define b3empty(B3 == cempt);
+#assert Aim() |=( []<>(b3sol || end)) && ([]<>(b3empty || end));

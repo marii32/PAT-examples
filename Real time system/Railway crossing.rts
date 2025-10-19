@@ -1,0 +1,21 @@
+﻿Train = trainnear -> nearind -> entercrossing -> leavecrossing -> outind -> Train;
+Controller = (nearind -> downcommand -> confirm -> entercrossing -> Controller) [] (outind -> upcommand -> confirm -> Controller);
+Gate =  (downcommand -> down -> confirm -> Gate) [] (upcommand -> up -> confirm -> Gate);
+Crossing = Controller || Gate;
+System = Train || Crossing;
+
+
+TTrain = trainnear -> nearind ->Wait[300]; entercrossing -> Wait[20]; leavecrossing -> outind -> TTrain;
+TController = (nearind -> Wait[1]; downcommand -> confirm -> entercrossing -> TController) [] (outind ->Wait[1]; upcommand -> confirm -> TController);
+TGate =  (downcommand -> Wait[100]; down -> confirm -> TGate) [] (upcommand -> Wait[100]; up -> confirm -> TGate);
+TCrossing = TController || TGate;
+TSystem = TTrain || TCrossing;
+
+#assert System deadlockfree;
+#assert TSystem deadlockfree;
+#assert TSystem refines System;
+#assert System refines TSystem;
+#assert TSystem refines<F> System;
+#assert TSystem refines<FD> System;
+#assert System refines<F> TSystem;
+#assert System refines<FD> TSystem;

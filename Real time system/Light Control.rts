@@ -1,0 +1,54 @@
+﻿//Light Control System
+
+var dim : {0..100};
+var on = false;
+channel button 0;
+channel dimmer 0;
+channel motion 0;
+
+//the button class
+TurningOn = turnOn{on=true;dim=100} -> Skip;
+TurningOff = turnOff{on=false;dim=0} -> Skip;
+
+//the light class
+ButtonPushing = button?1 ->
+       atomic{if (dim > 0) {
+               TurningOff
+       }
+       else {
+               TurningOn
+       }};
+
+DimChange = dimmer?n -> atomic{setdim{dim = n} -> Skip};
+
+ControlledLight = (ButtonPushing [] DimChange); ControlledLight;
+
+//the motion detector
+NoUser = move -> motion!1 -> User [] nomove -> Wait[1]; NoUser;
+User = nomove -> motion!0 -> NoUser [] move -> Wait[1]; User;
+MotionDetector = NoUser;
+
+//the room controller
+Ready = motion?1 -> button!1 -> On;
+Regular = adjust -> dimmer!50 -> Regular;
+On = Regular interrupt motion?0 -> OnAgain;
+OnAgain = (motion?1 -> On) timeout[20] Off;
+Off = button!1 ->> Ready;
+Controller = Ready;
+
+//the system
+System = MotionDetector ||| ControlledLight ||| Controller;
+
+#assert System deadlockfree;
+#assert System divergencefree;
+
+#define inv ((on && dim > 0) || (!on && dim == 0));
+#assert System |= []inv;
+
+#assert System |= [](turnOn -> <> turnOff);
+
+#define goal1  (!on && dim == 50);
+#assert System reaches goal1;
+
+#define goal2  (on && dim == 50);
+#assert System reaches goal2;

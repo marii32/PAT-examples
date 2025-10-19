@@ -1,0 +1,54 @@
+﻿#import "PAT.Lib.Queue";
+
+//number of trains
+#define N 4;
+
+channel appr 0;
+channel go 0;
+channel leave 0;
+channel stop 0;
+
+var<Queue> queue; 
+
+//Train model with 'within'
+Train(i) = appr!i -> ((stop?i  -> StopS(i) within[10]) timeout[10] Cross(i));
+
+Cross(i) = Wait[4]; (leave!i -> Train(i)) within[11];
+
+StopS(i) = go?i -> Start(i);
+
+Start(i) = Wait[10]; (leave!i -> Train(i)) within[10];
+ 
+Gate = if (queue.Count() ==0) {
+		    appr?i -> atomic{tau{queue.Enqueue(i)} -> Skip}; Occ
+	   } else {  
+	        (go!queue.First() -> Occ) within[10]
+    };
+ 
+Occ = (leave?[i == queue.First()]i -> atomic{tau{queue.Dequeue()} -> Skip}; Gate)
+     []
+     (appr?i -> atomic{tau{queue.Enqueue(i)} -> stop!queue.Last() -> Skip}; Occ);
+     
+System = (||| x:{0..N-1}@Train(x)) ||| Gate;
+
+
+#assert System deadlockfree;
+
+//Whenever a train approaches the bridge, it will eventually cross.
+#assert System |= [](appr.1 -> <>leave.1);
+
+
+//verifying bounded responsiveness by refinement checking
+Bounded = appr.0 -> Started [] go.0 -> Bounded [] leave.0 -> Bounded [] stop.0 -> Bounded
+            [] appr.1 -> Bounded [] go.1 -> Bounded [] leave.1 -> Bounded [] stop.1 -> Bounded
+            [] appr.2 -> Bounded [] go.2 -> Bounded [] leave.2 -> Bounded [] stop.2 -> Bounded
+            [] appr.3 -> Bounded [] go.3 -> Bounded [] leave.3 -> Bounded [] stop.3 -> Bounded;
+Started = Working deadline[20]; Bounded;
+Working = appr.0 -> Working [] go.0 -> Working [] leave.0 -> Skip [] stop.0 -> Working
+            [] appr.1 -> Working [] go.1 -> Working [] leave.1 -> Working [] stop.1 -> Working
+            [] appr.2 -> Working [] go.2 -> Working [] leave.2 -> Working [] stop.2 -> Working
+            [] appr.3 -> Working [] go.3 -> Working [] leave.3 -> Working [] stop.3 -> Working;
+//overflow: There can never be N elements in the queue (thus the array will not overflow).
+#define overflow (queue.Count()> N);
+#assert System reaches overflow;
+

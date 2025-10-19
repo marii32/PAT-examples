@@ -1,0 +1,59 @@
+﻿////////////////The Model//////////////////
+#define Max 17;
+
+#define KNIGHT 1;
+#define LADY 2;
+#define KING 5;
+#define QUEEN 10;
+
+var Knight = 0;
+var Lady = 0;
+var King = 0;
+var Queen = 0;
+
+South() = if (Knight == 0 && Lady == 0) {Wait[LADY]; go_knight_lady{Knight = 1; Lady = 1;} -> North()} else {South}
+          []
+          if (Knight == 0 && King == 0) {Wait[KING]; go_knight_king{Knight = 1; King= 1;} -> North()} else {South}
+          []
+          if (Knight == 0 && Queen == 0) {Wait[QUEEN]; go_knight_queen{Knight = 1; Queen= 1;} -> North()} else {South}
+          []
+          if (Lady == 0 && King == 0) {Wait[KING]; go_lady_king{Lady = 1; King= 1;} -> North()} else {South}
+          []
+          if (Lady == 0 && Queen == 0) {Wait[QUEEN]; go_lady_queen{Lady = 1; Queen= 1;} -> North()} else {South}
+          []
+          if (King == 0 && Queen == 0) {Wait[QUEEN]; go_king_queen{King = 1; Queen= 1;} -> North()} else {South}
+          []
+          if (Knight == 0) {Wait[KNIGHT]; go_knight{Knight = 1;} -> North()} else {South}
+          []
+          if (Lady == 0) {Wait[LADY]; go_lady{Lady = 1;} -> North()} else {South}
+          []
+          if (King == 0) {Wait[KING]; go_king{King = 1;} -> North()} else {South}
+          []
+          if (Queen == 0) {Wait[QUEEN]; go_queen{Queen = 1;} -> North()} else {South};
+
+North() = if (Knight == 1 && Lady == 1) {Wait[LADY]; back_knight_lady{Knight = 0; Lady = 0;} -> South()} else {North()}
+          []
+          if (Knight == 1 && King == 1) {Wait[KING]; back_knight_king{Knight = 0; King = 0;} -> South()} else {North()}
+          []
+          if (Knight == 1 && Queen == 1) {Wait[QUEEN]; back_knight_queen{Knight = 0; Queen = 0;} -> South()} else {North()}
+          []
+          if (Lady == 1 && King == 1) {Wait[KING]; back_lady_king{Lady = 0; King = 0;} -> South()} else {North()}
+          []
+          if (Lady == 1 && Queen == 1) {Wait[QUEEN]; back_lady_queen{Lady = 0; Queen = 0;} -> South()} else {North()}
+          []
+          if (King == 1 && Queen == 1) {Wait[QUEEN]; back_king_queen{King = 0; Queen = 0;} -> South()} else {North()}
+          []
+          if (Knight == 1) {Wait[KNIGHT]; back_knight{Knight = 0;} -> South()} else {North()}
+          []
+          if (Lady == 1) {Wait[LADY]; back_lady{Lady = 0;} -> South()} else {North()}
+          []
+          if (King == 1) {Wait[KING]; back_king{King = 0;} -> South()} else {North()}
+          []
+          if (Queen == 1) {Wait[QUEEN]; back_queen{Queen = 0;} -> South()} else {North()};
+
+FailGame() = South() deadline[Max-1];
+SuccessGame() = South() deadline[Max];
+////////////////The Properties//////////////////
+#define goal (Knight==1 && Lady==1 && King==1 && Queen==1);
+#assert FailGame() reaches goal;
+#assert SuccessGame() reaches goal;

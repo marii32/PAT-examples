@@ -1,0 +1,114 @@
+﻿/********************************************************************************************************************
+@inproceedings{681364,
+ author = {Wang Yi and Paul Pettersson and Mats Daniels},
+ title = {Automatic verification of real-time communicating systems by constraint-solving},
+ booktitle = {Proceedings of the 7th IFIP WG6.1 International Conference on Formal Description Techniques VII},
+ year = {1995},
+ isbn = {0-412-64450-9},
+ pages = {243--258},
+ publisher = {Chapman & Hall, Ltd.},
+ }
+********************************************************************************************************************/
+
+
+//N, ERROR
+#define N 3;
+//#define ERROR 1;
+
+var max_x = [0(N-1)];
+
+
+var x = 0;
+
+//var e[N];
+var e;
+
+
+channel appr 0;
+channel stop 0;
+channel go 0;
+channel leave 0;
+channel is_empty 0;
+channel notempty 0;
+channel hd 0;
+channel add 0;
+channel rem 0;
+
+
+/*----------------------------------------------Clock----------------------------------------------------------*/
+
+
+Clock() = [ x <= max_x[0] && x <= max_x[1] ]
+			tick{ x = x + 1 } -> Clock();
+
+
+
+/*-----------------------------------------Controller = Gate ||| INITQ-----------------------------------------------------------*/
+
+Controller() = Gate() ||| InitQ() ;
+
+
+//Gate
+Gate() = Free();
+
+Free() = notempty?0 -> hd!0 -> go!0 -> Occ() [] is_empty?0 -> appr?0 -> add!0 -> Occ();
+S1() = rem?0 -> Free();
+S2() = add!0 -> Occ();
+S6() = stop!0 -> S2();
+Occ() = appr?0 -> S6() [] leave?0 -> S1();
+
+
+//InitQ
+var list[N];
+var ln = 0;
+var index = 0;
+
+InitQ() = Start();
+
+Start() = [ ln >= 1 ]rem!0{ ln = ln - 1; index = 0 } -> Shiftdown() []
+		  [ ln == 0 ]is_empty!0 -> Start() []
+		  ( add?0{ list[ln] = e; ln = ln + 1 } -> Start()) []
+		  ( hd?0{e = list[0] } -> Start()) []
+ 		  [ ln > 0 ]notempty!0 -> Start() ;
+
+Shiftdown() = [ index < ln ]shiftdown.0{ list[index] = list[index+1]; index = index + 1 } -> Shiftdown() []
+		      [ ln == index ]shiftdown.1{ list[index] = 0; index = 0 } -> Start() ;
+		      
+/*------------------------------------------------------Train--------------------------------------------------------------*/
+
+hvar cross_flag =[0(N-1)];
+
+Train(i) = SafeT(i);
+
+SafeT(i) = appr!0{ e = i; x = 0; max_x[i] = 20; } -> ApprT(i);
+
+StopT(i) = [e == i]go?0{ x = 0; max_x[i] = 15 } -> StarT(i);				
+
+CrossT(i) = [x >= 3]leave!0{ e = i; x = 0; max_x[i] = 25; cross_flag[i] = 0 } -> SafeT(i);
+
+ApprT(i) = ([x >= 10]apprT.0.i{ x = 0; max_x[i] = 5; if(x >= 3){ cross_flag[i] = 1 } } -> CrossT(i) []
+           ([x < 10 && e == i] stop?0{ x = 0; max_x[i] = 25 } -> StopT(i)));
+
+//StarT(i) = [ ERROR == 0 && x >= 7 || ERROR != 0 && x >= 5 ]starT.i{ x = 0; max_x[i] = 5; } -> CrossT(i);
+StarT(i) = [ x >= 5 ]starT.i{ x = 0; max_x[i] = 5; } -> CrossT(i);
+
+/*-----------------------------------------------------------------------------------------*/
+
+TrainGate() = Clock() ||| Controller() ||| (||| i:{0..N-2} @ Train(i)) ;
+
+/*-----------------------------------------------------------------------------------------*/
+
+#assert TrainGate() deadlockfree;
+
+//reachability
+//Collision on the cross (train 1 and train 2)
+#define CROSS (cross_flag[0] == 1 && cross_flag[1] == 1);
+#assert TrainGate() reaches CROSS;
+
+//Response property (whenever a train approaches the bridge, it will eventually cross) for the train 1.
+#assert TrainGate() |= [] (appr.0 -> <> leave.0);
+
+
+
+#define InfeasibleGoal (false);
+#assert TrainGate() reaches InfeasibleGoal;             
