@@ -1,4 +1,6 @@
-﻿//=======================Model Details===========================
+Убираем
+
+//=======================Model Details===========================
 #define CHANNELSIZE 1;
 
 channel c CHANNELSIZE; //unreliable channel.
