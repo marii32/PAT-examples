@@ -1,4 +1,6 @@
-﻿#import "PAT.Lib.Example";
+Оставляем
+
+#import "PAT.Lib.Example";
 
 #define NoOfFloors 2;
 #define NoOfLifts 2;
