@@ -1,4 +1,6 @@
-﻿//Light Control System
+Оставляем
+
+//Light Control System
 
 var dim : {0..100};
 var on = false;
