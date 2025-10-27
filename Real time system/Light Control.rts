@@ -2,6 +2,13 @@
 
 //Light Control System
 
+Light Control System (LCS) is an intelligent control system. It can detect the occupation of a building, then turn on or turn off the lights automatically. 
+It is able to tune illumination (in percentage) in the building according to the outside light level. A typical system behavior is that when a user enters a room:
+a motion detector senses the presence of the person, the room controller reacts by receiving the current daylight level 
+and turning on the light group with appropriate illumination setting (let satisfy represent the relationship between daylight level and required illumination). 
+When a user leaves a room (leaving it empty): the detector senses no movement, the room controller waits for absent time units and then turns off the light group. 
+The occupant can directly turn on/off the light by pushing the button.
+
 var dim : {0..100};
 var on = false;
 channel button 0;
