@@ -1,4 +1,8 @@
-﻿/********************************************************************************************************************
+The example is converted from an UPPAAL demo. The clock x were modeled by new process Clock and byte x is from 0 to 25.
+N: The number of trains + 1
+ERROR: An artificial error in the model (wrong bound)
+
+/********************************************************************************************************************
 @inproceedings{681364,
  author = {Wang Yi and Paul Pettersson and Mats Daniels},
  title = {Automatic verification of real-time communicating systems by constraint-solving},
