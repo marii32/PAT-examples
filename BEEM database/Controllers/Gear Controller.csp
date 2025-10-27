@@ -1,6 +1,8 @@
 Оставляем
 
-The gear controller is a component in the real-time embedded system that operates in a modern vehicle. The gear-requests from the driver are delivered over a communication network to the gear controller. The controller implements the actual gear change by actuating the lower level components of the system, such as the clutch, the engine and the gear-box. 
+The gear controller is a component in the real-time embedded system that operates in a modern vehicle. The gear-requests from the driver are 
+delivered over a communication network to the gear controller. 
+The controller implements the actual gear change by actuating the lower level components of the system, such as the clutch, the engine and the gear-box. 
 
 /***********************************************************************************************************
 @article{,
