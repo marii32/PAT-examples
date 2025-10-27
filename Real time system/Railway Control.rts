@@ -1,6 +1,9 @@
-In this example, we model a railway control system to automatically control trains passing a critical point such a bridge. The idea is to use a computer to guide trains from several tracks crossing a single bridge instead of bguilding many brideges. Obviously, a safety-property of such a system is to avoid the situation where more than one train are crossing the bridge at the same time. 
+In this example, we model a railway control system to automatically control trains passing a critical point such a bridge. 
+The idea is to use a computer to guide trains from several tracks crossing a single bridge instead of bguilding many brideges. 
+Obviously, a safety-property of such a system is to avoid the situation where more than one train are crossing the bridge at the same time. 
 
-For more details about this example, see "Automatic Verification of Real-Time Communicating Systems by Constraint Solving", by Wang Yi, Paul Pettersson and Mats Daniels. In Proceedings of the 7th International  * Conference on Formal Description Techniques, pages 223-238, North-Holland. 1994.
+For more details about this example, see "Automatic Verification of Real-Time Communicating Systems by Constraint Solving", by Wang Yi, 
+Paul Pettersson and Mats Daniels. In Proceedings of the 7th International  * Conference on Formal Description Techniques, pages 223-238, North-Holland. 1994.
 
 Оставляем
 
